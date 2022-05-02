@@ -3,6 +3,6 @@
 
 ## Installation
 ```shell
-go install github.com/goccha/dynamodb-verse
+go install github.com/goccha/dynamodb-verse@latest
 ```
 

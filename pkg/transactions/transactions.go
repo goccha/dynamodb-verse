@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"time"
 )
 
 const (
@@ -19,8 +20,8 @@ type UpdateField func(ctx context.Context, builder *expression.UpdateBuilder) ex
 type NewTransactionItem func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error)
 
 type Transaction interface {
-	PutItem(expiredAt int64) NewTransactionItem
-	DeleteItem() NewTransactionItem
+	PutItem(ctx context.Context, expiredAt ...time.Time) NewTransactionItem
+	DeleteItem(ctx context.Context) NewTransactionItem
 	UpdateItem(ctx context.Context, fields ...UpdateField) NewTransactionItem
 }
 

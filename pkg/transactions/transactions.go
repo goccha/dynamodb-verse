@@ -18,6 +18,12 @@ type UpdateField func(ctx context.Context, builder *expression.UpdateBuilder) ex
 
 type NewTransactionItem func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error)
 
+type Transaction interface {
+	PutItem(expiredAt int64) NewTransactionItem
+	DeleteItem() NewTransactionItem
+	UpdateItem(ctx context.Context, fields ...UpdateField) NewTransactionItem
+}
+
 func New() *Builder {
 	return &Builder{
 		items: make([]types.TransactWriteItem, 0, MaxItems),

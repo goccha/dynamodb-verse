@@ -65,10 +65,15 @@ func (indexes SecondaryIndexes) UpdateGlobals(desc types.TableDescription) []typ
 				var updateProvision *types.ProvisionedThroughput
 				for _, orgIndex := range desc.GlobalSecondaryIndexes {
 					if *orgIndex.IndexName == newIndex.Name {
-						if *orgIndex.ProvisionedThroughput.ReadCapacityUnits != newIndex.Throughput.Read {
+						newReadCapacity, newWriteCapacity := int64(0), int64(0)
+						if newIndex.Throughput != nil {
+							newReadCapacity = newIndex.Throughput.Read
+							newWriteCapacity = newIndex.Throughput.Write
+						}
+						if *orgIndex.ProvisionedThroughput.ReadCapacityUnits != newReadCapacity {
 							updateProvision = newIndex.Throughput.Element()
 							break
-						} else if *orgIndex.ProvisionedThroughput.WriteCapacityUnits != newIndex.Throughput.Write {
+						} else if *orgIndex.ProvisionedThroughput.WriteCapacityUnits != newWriteCapacity {
 							updateProvision = newIndex.Throughput.Element()
 							break
 						}
@@ -84,12 +89,16 @@ func (indexes SecondaryIndexes) UpdateGlobals(desc types.TableDescription) []typ
 					})
 					updateProvision = nil
 				} else { // 追加
+					var throughput *types.ProvisionedThroughput
+					if newIndex.Throughput != nil {
+						throughput = newIndex.Throughput.Element()
+					}
 					updates = append(updates, types.GlobalSecondaryIndexUpdate{
 						Create: &types.CreateGlobalSecondaryIndexAction{
 							IndexName:             aws.String(newIndex.Name),
 							KeySchema:             newIndex.Keys.Elements(),
 							Projection:            newIndex.Projection.Element(),
-							ProvisionedThroughput: newIndex.Throughput.Element(),
+							ProvisionedThroughput: throughput,
 						},
 					})
 				}

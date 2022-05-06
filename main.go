@@ -13,11 +13,13 @@ import (
 )
 
 func main() {
+	var local bool
 	var region, endpoint, profile, dirPath string
 	flag.StringVar(&region, "region", "ap-northeast-1", "AWS Region")
 	flag.StringVar(&endpoint, "endpoint", "", "AWS DynamoDB Endpoint")
 	flag.StringVar(&profile, "profile", "", "AWS Profile")
 	flag.StringVar(&dirPath, "path", "configs/dynamodb", "Directory path for configuration files")
+	flag.BoolVar(&local, "local", true, "for dynamodb-local")
 
 	flag.Parse()
 
@@ -37,6 +39,9 @@ func main() {
 		return
 	}
 	var cli *dynamodb.Client
+	if local && endpoint == "" {
+		endpoint = "http://localhost:8000"
+	}
 	if endpoint = envar.Get("AWS_DYNAMODB_ENDPOINT").String(endpoint); endpoint != "" { // dynamodb-local対応
 		cli = dynamodb.NewFromConfig(cfg, dynamodb.WithEndpointResolver(
 			dynamodb.EndpointResolverFromURL(endpoint)),

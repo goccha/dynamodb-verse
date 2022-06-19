@@ -1,11 +1,11 @@
-package repositories
+package foundations
 
 import (
 	"context"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/goccha/dynamodb-verse/pkg/transactions"
 	"github.com/goccha/logging/log"
 	"github.com/pkg/errors"
 	"reflect"
@@ -35,11 +35,11 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &ErrNotFound)
 }
 
-type NewGetKey func() (table string, keys map[string]types.AttributeValue, attrs []string, err error)
+type GetKeyFunc func() (table string, keys map[string]types.AttributeValue, attrs []string, err error)
 
-type FetchItem func(tableName string, value map[string]types.AttributeValue) error
+type FetchItemFunc func(tableName string, value map[string]types.AttributeValue) error
 
-func Get(ctx context.Context, cli GetClient, getKeys NewGetKey, fetch FetchItem) error {
+func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItemFunc) error {
 	table, keys, attrs, err := getKeys()
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func Get(ctx context.Context, cli GetClient, getKeys NewGetKey, fetch FetchItem)
 	return nil
 }
 
-func Put(ctx context.Context, cli WriteClient, items transactions.NewTransactionItem) error {
+func Put(ctx context.Context, cli WriteClient, items WriteItemFunc) error {
 	table, item, expr, err := items()
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func Put(ctx context.Context, cli WriteClient, items transactions.NewTransaction
 	return nil
 }
 
-func Update(ctx context.Context, cli WriteClient, items transactions.NewTransactionItem) error {
+func Update(ctx context.Context, cli WriteClient, items WriteItemFunc) error {
 	table, item, expr, err := items()
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ func Update(ctx context.Context, cli WriteClient, items transactions.NewTransact
 	return nil
 }
 
-func Delete(ctx context.Context, cli WriteClient, items transactions.NewTransactionItem) error {
+func Delete(ctx context.Context, cli WriteClient, items WriteItemFunc) error {
 	table, keys, expr, err := items()
 	if err != nil {
 		return err
@@ -118,4 +118,16 @@ func Delete(ctx context.Context, cli WriteClient, items transactions.NewTransact
 		return err
 	}
 	return nil
+}
+
+type WriteItemFunc func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error)
+
+type UpdateField func(ctx context.Context, builder *expression.UpdateBuilder) expression.UpdateBuilder
+
+func UpdateItems(ctx context.Context, fields ...UpdateField) expression.UpdateBuilder {
+	var builder expression.UpdateBuilder
+	for _, v := range fields {
+		builder = v(ctx, &builder)
+	}
+	return builder
 }

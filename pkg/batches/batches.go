@@ -6,7 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/goccha/dynamodb-verse/pkg/repositories"
+	"github.com/goccha/dynamodb-verse/pkg/foundations"
 )
 
 func NewBatch(tableName string, entities []interface{}) *Batch {
@@ -114,7 +114,7 @@ func batchDelete(ctx context.Context, cli WriteClient, tableName string, entitie
 	return nil
 }
 
-func (builder *Batch) Get(ctx context.Context, cli GetClient, fetch repositories.FetchItem) (err error) {
+func (builder *Batch) Get(ctx context.Context, cli GetClient, fetch foundations.FetchItemFunc) (err error) {
 	for i := 0; i < len(builder.entities); i += MaxGetItems {
 		end := i + MaxGetItems
 		if end > len(builder.entities) {
@@ -127,7 +127,7 @@ func (builder *Batch) Get(ctx context.Context, cli GetClient, fetch repositories
 	return nil
 }
 
-func batchGet(ctx context.Context, cli GetClient, tableName string, entities []interface{}, fetch repositories.FetchItem) (err error) {
+func batchGet(ctx context.Context, cli GetClient, tableName string, entities []interface{}, fetch foundations.FetchItemFunc) (err error) {
 	if len(entities) > MaxGetItems {
 		return fmt.Errorf("batch write size is within %d items", MaxGetItems)
 	}

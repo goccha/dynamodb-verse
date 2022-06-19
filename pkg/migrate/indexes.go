@@ -56,7 +56,7 @@ func (indexes SecondaryIndexes) LocalIndexes() []types.LocalSecondaryIndex {
 func (indexes SecondaryIndexes) UpdateGlobals(desc types.TableDescription) []types.GlobalSecondaryIndexUpdate {
 	updates := make([]types.GlobalSecondaryIndexUpdate, 0, 2)
 	if desc.GlobalSecondaryIndexes != nil && len(desc.GlobalSecondaryIndexes) > 0 { // 既存のGlobalSecondaryIndexが存在する場合
-		if indexes != nil && len(indexes) > 0 { // 更新
+		if len(indexes) > 0 { // 更新
 			org := make(map[string]types.GlobalSecondaryIndexDescription)
 			for _, v := range desc.GlobalSecondaryIndexes {
 				org[*v.IndexName] = v
@@ -116,7 +116,7 @@ func (indexes SecondaryIndexes) UpdateGlobals(desc types.TableDescription) []typ
 			}
 		}
 	} else { // GlobalIndexを新規に追加
-		if indexes != nil && len(indexes) > 0 {
+		if len(indexes) > 0 {
 			for _, v := range indexes {
 				updates = append(updates, types.GlobalSecondaryIndexUpdate{
 					Create: &types.CreateGlobalSecondaryIndexAction{

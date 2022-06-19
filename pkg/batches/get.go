@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/goccha/dynamodb-verse/pkg/repositories"
+	"github.com/goccha/dynamodb-verse/pkg/foundations"
 )
 
 const (
@@ -47,7 +47,7 @@ func (gi *getItem) Keys(table string, value map[string]types.AttributeValue, att
 	return key, false
 }
 
-func (gi *getItem) run(ctx context.Context, cli GetClient, fetch repositories.FetchItem) (err error) {
+func (gi *getItem) run(ctx context.Context, cli GetClient, fetch foundations.FetchItemFunc) (err error) {
 	keys := gi.keys
 	for len(keys) > 0 {
 		var out *dynamodb.BatchGetItemOutput
@@ -69,7 +69,7 @@ func (gi *getItem) run(ctx context.Context, cli GetClient, fetch repositories.Fe
 	return nil
 }
 
-func Get(keys ...repositories.NewGetKey) *GetBuilder {
+func Get(keys ...foundations.GetKeyFunc) *GetBuilder {
 	builder := &GetBuilder{
 		items: make([]*getItem, 0, len(keys)),
 	}
@@ -85,7 +85,7 @@ func (builder *GetBuilder) HasError() bool {
 	return builder.err != nil
 }
 
-func (builder *GetBuilder) Keys(keys ...repositories.NewGetKey) *GetBuilder {
+func (builder *GetBuilder) Keys(keys ...foundations.GetKeyFunc) *GetBuilder {
 	if builder.err != nil {
 		return builder
 	}
@@ -118,7 +118,7 @@ func (builder *GetBuilder) get(length int) *getItem {
 	return gi
 }
 
-func (builder *GetBuilder) Run(ctx context.Context, cli GetClient, fetch repositories.FetchItem) (err error) {
+func (builder *GetBuilder) Run(ctx context.Context, cli GetClient, fetch foundations.FetchItemFunc) (err error) {
 	if builder.err != nil {
 		return builder.err
 	}

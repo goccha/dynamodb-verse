@@ -11,7 +11,7 @@ const (
 	MaxWriteItems = 25
 )
 
-type NewWriteItem func() (table string, item map[string]types.AttributeValue, err error)
+type WriteItemFunc func() (table string, item map[string]types.AttributeValue, err error)
 
 type writeItem struct {
 	items map[string][]types.WriteRequest
@@ -76,7 +76,7 @@ func (builder *Builder) HasError() bool {
 	return builder.err != nil
 }
 
-func (builder *Builder) Put(items ...NewWriteItem) *Builder {
+func (builder *Builder) Put(items ...WriteItemFunc) *Builder {
 	if builder.err != nil {
 		return builder
 	}
@@ -97,7 +97,7 @@ func (builder *Builder) Put(items ...NewWriteItem) *Builder {
 	return builder
 }
 
-func (builder *Builder) Delete(items ...NewWriteItem) *Builder {
+func (builder *Builder) Delete(items ...WriteItemFunc) *Builder {
 	if builder.err != nil {
 		return builder
 	}

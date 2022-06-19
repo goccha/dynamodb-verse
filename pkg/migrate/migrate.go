@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/logging/log"
+	"gopkg.in/yaml.v3"
 	"io/fs"
 	"io/ioutil"
 	"path/filepath"
@@ -27,31 +28,57 @@ type MigrationApi interface {
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
 }
 
-type Migrate struct {
+type Migrate interface {
+	Run(ctx context.Context, save SaveFunc) error
+}
+
+func Parse(api MigrationApi, schema string) Migrate {
+	return &SchemaMigrate{
+		api:    api,
+		schema: schema,
+	}
+}
+
+type SchemaMigrate struct {
+	api    MigrationApi
+	schema string
+}
+
+func (v *SchemaMigrate) Run(ctx context.Context, save SaveFunc) (err error) {
+	ts := &TableSchema{}
+	if err = yaml.Unmarshal([]byte(v.schema), ts); err != nil {
+		return err
+	}
+	if _, err = ts.Exists(ctx, v.api); err != nil {
+		return err
+	}
+	_, err = ts.Create(ctx, v.api)
+	return err
+}
+
+type FilesMigrate struct {
 	api     MigrationApi
 	dirPath []string
 }
 
-func New(api MigrationApi, dirPath ...string) *Migrate {
-	return &Migrate{
+func New(api MigrationApi, dirPath ...string) Migrate {
+	return &FilesMigrate{
 		api:     api,
 		dirPath: dirPath,
 	}
 }
 
-func (v *Migrate) Run(ctx context.Context, save Save) error {
+func (v *FilesMigrate) Run(ctx context.Context, save SaveFunc) (err error) {
 	for _, path := range v.dirPath {
-		if files, err := ioutil.ReadDir(path); err != nil {
+		var files []fs.FileInfo
+		if files, err = ioutil.ReadDir(path); err != nil {
 			return err
-		} else {
-			for _, f := range files {
-				if i := strings.LastIndex(f.Name(), "."); i > 0 {
-					switch f.Name()[i:] {
-					case ".json", ".yaml", ".yml":
-						if err = v.migrate(ctx, v.api, path, f, save); err != nil {
-							return err
-						}
-					}
+		}
+		for _, f := range files {
+			switch filepath.Ext(f.Name()) {
+			case "json", "yaml", "yml":
+				if err = v.migrate(ctx, v.api, path, f, save); err != nil {
+					return err
 				}
 			}
 		}
@@ -110,7 +137,7 @@ func migrated(ctx context.Context, api MigrationApi, name string) (bool, error) 
 	return out != nil && len(out.Item) > 0, nil
 }
 
-func (v *Migrate) migrate(ctx context.Context, api MigrationApi, path string, file fs.FileInfo, save Save) error {
+func (v *FilesMigrate) migrate(ctx context.Context, api MigrationApi, path string, file fs.FileInfo, save SaveFunc) error {
 	if _, err := api.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(MigrationTable)}); err != nil {
 		if errors.As(err, &ErrNotFound) { // テーブルが存在しない場合
 			if err = createMigrationTable(ctx, api); err != nil {
@@ -141,8 +168,7 @@ func (v *Migrate) migrate(ctx context.Context, api MigrationApi, path string, fi
 	return nil
 }
 
-func (v *Migrate) createTable(ctx context.Context, api MigrationApi, path, name string, save Save) error {
-	//s := &Schema{}
+func (v *FilesMigrate) createTable(ctx context.Context, api MigrationApi, path, name string, save SaveFunc) error {
 	var schemas []Schema
 	if body, err := ioutil.ReadFile(filepath.Join(path, name)); err != nil {
 		return fmt.Errorf("%w", err)
@@ -201,4 +227,4 @@ func saveMigration(ctx context.Context, api MigrationApi, name string) (err erro
 	return nil
 }
 
-type Save func(ctx context.Context, api MigrationApi, tableName string, record map[string]interface{}) error
+type SaveFunc func(ctx context.Context, api MigrationApi, tableName string, record map[string]interface{}) error

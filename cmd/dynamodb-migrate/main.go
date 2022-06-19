@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -10,19 +11,30 @@ import (
 	"github.com/goccha/dynamodb-verse/pkg/migrate"
 	"github.com/goccha/envar"
 	"os"
+	"strings"
+)
+
+var (
+	version  = "v0.0.0"
+	revision = "0000000"
 )
 
 func main() {
-	var local bool
+	var local, ver bool
 	var region, endpoint, profile, dirPath string
 	flag.StringVar(&region, "region", "ap-northeast-1", "AWS Region")
 	flag.StringVar(&endpoint, "endpoint", "", "AWS DynamoDB Endpoint")
 	flag.StringVar(&profile, "profile", "", "AWS Profile")
 	flag.StringVar(&dirPath, "path", "configs/dynamodb", "Directory path for configuration files")
 	flag.BoolVar(&local, "local", true, "for dynamodb-local")
+	flag.BoolVar(&ver, "version", true, "show version")
 
 	flag.Parse()
 
+	if ver {
+		fmt.Printf("%s", Version())
+		return
+	}
 	ctx := context.Background()
 	var err error
 	var logLevel aws.ClientLogMode
@@ -53,4 +65,8 @@ func main() {
 	if err = migrate.New(cli, dirPath).Run(ctx, migrate.SaveRecord); err != nil {
 		panic(err)
 	}
+}
+
+func Version() string {
+	return fmt.Sprintf("%s-%s", strings.ReplaceAll(version, "/", "_"), revision)
 }

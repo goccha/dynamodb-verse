@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/goccha/dynamodb-verse/pkg/foundations"
 	"time"
 )
 
@@ -15,14 +15,10 @@ const (
 	MaxItems = 25
 )
 
-type UpdateField func(ctx context.Context, builder *expression.UpdateBuilder) expression.UpdateBuilder
-
-type NewTransactionItem func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error)
-
 type Transaction interface {
-	PutItem(ctx context.Context, expiredAt ...time.Time) NewTransactionItem
-	DeleteItem(ctx context.Context) NewTransactionItem
-	UpdateItem(ctx context.Context, fields ...UpdateField) NewTransactionItem
+	PutItem(ctx context.Context, expiredAt ...time.Time) foundations.WriteItemFunc
+	DeleteItem(ctx context.Context) foundations.WriteItemFunc
+	UpdateItem(ctx context.Context, fields ...foundations.UpdateField) foundations.WriteItemFunc
 }
 
 func New() *Builder {
@@ -41,7 +37,7 @@ func (builder *Builder) HasError() bool {
 }
 
 // Put 追加用
-func (builder *Builder) Put(keys ...NewTransactionItem) *Builder {
+func (builder *Builder) Put(keys ...foundations.WriteItemFunc) *Builder {
 	if builder.err != nil {
 		return builder
 	}
@@ -70,7 +66,7 @@ func (builder *Builder) Put(keys ...NewTransactionItem) *Builder {
 }
 
 // Delete 削除用
-func (builder *Builder) Delete(keys ...NewTransactionItem) *Builder {
+func (builder *Builder) Delete(keys ...foundations.WriteItemFunc) *Builder {
 	if builder.err != nil {
 		return builder
 	}
@@ -99,7 +95,7 @@ func (builder *Builder) Delete(keys ...NewTransactionItem) *Builder {
 }
 
 // Update 更新用
-func (builder *Builder) Update(keys ...NewTransactionItem) *Builder {
+func (builder *Builder) Update(keys ...foundations.WriteItemFunc) *Builder {
 	if builder.err != nil {
 		return builder
 	}

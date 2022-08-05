@@ -2,11 +2,10 @@ package migrate
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/pkg/errors"
 )
 
 type TableSchema struct {
@@ -37,7 +36,7 @@ func (t TableSchema) Exists(ctx context.Context, api MigrationApi) (out *dynamod
 		if errors.As(err, &ErrNotFound) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("%w", err) // テーブルが存在しない以外のエラー
+		return nil, errors.WithStack(err) // テーブルが存在しない以外のエラー
 	}
 	return out, nil
 }
@@ -68,14 +67,14 @@ func (t TableSchema) Create(ctx context.Context, api MigrationApi) (out *dynamod
 		Tags:                   nil, // TODO
 	}
 	if out, err = api.CreateTable(ctx, input); err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, errors.WithStack(err)
 	}
 	if t.TimeToLive != nil {
 		if _, err = api.UpdateTimeToLive(ctx, &dynamodb.UpdateTimeToLiveInput{
 			TableName:               aws.String(t.TableName),
 			TimeToLiveSpecification: t.TimeToLive.Element(),
 		}); err != nil {
-			return nil, fmt.Errorf("%w", err)
+			return nil, errors.WithStack(err)
 		}
 	}
 	return
@@ -98,12 +97,12 @@ func (t TableSchema) Update(ctx context.Context, api MigrationApi, desc types.Ta
 		in.TableClass = t.TableClass
 	}
 	if out, err = api.UpdateTable(ctx, in); err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, errors.WithStack(err)
 	}
 	if t.TimeToLive != nil {
 		var ttl *dynamodb.DescribeTimeToLiveOutput
 		if ttl, err = api.DescribeTimeToLive(ctx, &dynamodb.DescribeTimeToLiveInput{TableName: aws.String(t.TableName)}); err != nil {
-			return nil, fmt.Errorf("%w", err)
+			return nil, errors.WithStack(err)
 		} else {
 			update := false
 			switch ttl.TimeToLiveDescription.TimeToLiveStatus {
@@ -117,7 +116,7 @@ func (t TableSchema) Update(ctx context.Context, api MigrationApi, desc types.Ta
 					TableName:               aws.String(t.TableName),
 					TimeToLiveSpecification: t.TimeToLive.Element(),
 				}); err != nil {
-					return nil, fmt.Errorf("%w", err)
+					return nil, errors.WithStack(err)
 				}
 			}
 		}
@@ -127,7 +126,7 @@ func (t TableSchema) Update(ctx context.Context, api MigrationApi, desc types.Ta
 
 func (t TableSchema) Delete(ctx context.Context, api MigrationApi) (out *dynamodb.DeleteTableOutput, err error) {
 	if out, err = api.DeleteTable(ctx, &dynamodb.DeleteTableInput{TableName: aws.String(t.TableName)}); err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, errors.WithStack(err)
 	}
 	return
 }

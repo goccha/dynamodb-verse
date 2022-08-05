@@ -2,12 +2,12 @@ package migrate
 
 import (
 	"context"
-	"fmt"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/logging/log"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"strings"
 	"time"
 )
@@ -23,7 +23,7 @@ func SaveRecord(ctx context.Context, api MigrationApi, tableName string, record 
 			TableName: &tableName,
 		}); err != nil {
 			log.Error(ctx).Str("table", tableName).Err(err).Send()
-			return fmt.Errorf("%w", err)
+			return errors.WithStack(err)
 		} else {
 			log.Debug(ctx).Msgf("%+v", out)
 		}

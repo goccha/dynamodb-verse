@@ -21,13 +21,15 @@ var (
 
 func main() {
 	var local, ver bool
+	var debug string
 	var region, endpoint, profile, dirPath string
-	flag.StringVar(&region, "region", "ap-northeast-1", "AWS Region")
+	flag.StringVar(&region, "region", "", "AWS Region")
 	flag.StringVar(&endpoint, "endpoint", "", "AWS DynamoDB Endpoint")
 	flag.StringVar(&profile, "profile", "", "AWS Profile")
-	flag.StringVar(&dirPath, "path", "configs/dynamodb", "Directory path for configuration files")
+	flag.StringVar(&dirPath, "path", "", "Directory path for configuration files")
 	flag.BoolVar(&local, "local", true, "for dynamodb-local")
-	flag.BoolVar(&ver, "version", true, "show version")
+	flag.BoolVar(&ver, "version", false, "show version")
+	flag.StringVar(&debug, "debug", "", "debug mode (true|false)")
 
 	flag.Parse()
 
@@ -38,13 +40,18 @@ func main() {
 	ctx := context.Background()
 	var err error
 	var logLevel aws.ClientLogMode
-	if envar.Bool("AWS_DEBUG_LOG") {
+	if strings.EqualFold(debug, "true") || debug == "" && envar.Bool("AWS_DEBUG_LOG") {
 		logLevel = aws.LogSigning | aws.LogRequestWithBody | aws.LogRetries | aws.LogResponseWithBody
 	}
-	region = envar.Get("AWS_REGION", "AWS_DEFAULT_REGION").String(region)
+	if region == "" {
+		region = envar.Get("AWS_REGION", "AWS_DEFAULT_REGION").String("ap-northeast-1")
+	}
+	if profile == "" {
+		profile = envar.String("AWS_PROFILE")
+	}
 	var cfg aws.Config
 	if cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(region),
-		config.WithSharedConfigProfile(envar.Get("AWS_PROFILE").String(profile)),
+		config.WithSharedConfigProfile(profile),
 		config.WithClientLogMode(logLevel),
 		config.WithLogger(logging.NewStandardLogger(os.Stdout)), config.WithLogConfigurationWarnings(true),
 	); err != nil {
@@ -61,7 +68,9 @@ func main() {
 	} else {
 		cli = dynamodb.NewFromConfig(cfg)
 	}
-	dirPath = envar.Get("DYNAMODB_CONFIG_PATH").String(dirPath)
+	if dirPath == "" {
+		dirPath = envar.Get("DYNAMODB_CONFIG_PATH").String("configs/dynamodb")
+	}
 	if err = migrate.New(cli, dirPath).Run(ctx, migrate.SaveRecord); err != nil {
 		panic(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -32,12 +33,12 @@ func (r *Resource) Checksum() (h [32]byte, err error) {
 func ParseJson(name string, body []byte) (schemas []Schema, err error) {
 	t := Template{}
 	if err = json.Unmarshal(body, &t); err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, errors.WithStack(err)
 	}
 	if t.Version == "" {
 		s := &Schema{name: name}
 		if err = json.Unmarshal(body, s); err != nil {
-			return nil, fmt.Errorf("%w", err)
+			return nil, errors.WithStack(err)
 		}
 		schemas = []Schema{
 			*s,
@@ -61,12 +62,12 @@ func ParseJson(name string, body []byte) (schemas []Schema, err error) {
 func ParseYaml(name string, body []byte) (schemas []Schema, err error) {
 	t := Template{}
 	if err = yaml.Unmarshal(body, &t); err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, errors.WithStack(err)
 	}
 	if t.Version == "" {
 		s := &Schema{name: name}
 		if err = yaml.Unmarshal(body, s); err != nil {
-			return nil, fmt.Errorf("%w", err)
+			return nil, errors.WithStack(err)
 		}
 		schemas = []Schema{
 			*s,

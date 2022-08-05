@@ -2,16 +2,14 @@ package migrate
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/logging/log"
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
-	"io/fs"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -70,13 +68,13 @@ func New(api MigrationApi, dirPath ...string) Migrate {
 
 func (v *FilesMigrate) Run(ctx context.Context, save SaveFunc) (err error) {
 	for _, path := range v.dirPath {
-		var files []fs.FileInfo
-		if files, err = ioutil.ReadDir(path); err != nil {
+		var files []os.DirEntry
+		if files, err = os.ReadDir(path); err != nil {
 			return err
 		}
 		for _, f := range files {
 			switch filepath.Ext(f.Name()) {
-			case "json", "yaml", "yml":
+			case ".json", ".yaml", ".yml":
 				if err = v.migrate(ctx, v.api, path, f, save); err != nil {
 					return err
 				}
@@ -137,7 +135,7 @@ func migrated(ctx context.Context, api MigrationApi, name string) (bool, error) 
 	return out != nil && len(out.Item) > 0, nil
 }
 
-func (v *FilesMigrate) migrate(ctx context.Context, api MigrationApi, path string, file fs.FileInfo, save SaveFunc) error {
+func (v *FilesMigrate) migrate(ctx context.Context, api MigrationApi, path string, file os.DirEntry, save SaveFunc) error {
 	if _, err := api.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(MigrationTable)}); err != nil {
 		if errors.As(err, &ErrNotFound) { // テーブルが存在しない場合
 			if err = createMigrationTable(ctx, api); err != nil {
@@ -170,16 +168,16 @@ func (v *FilesMigrate) migrate(ctx context.Context, api MigrationApi, path strin
 
 func (v *FilesMigrate) createTable(ctx context.Context, api MigrationApi, path, name string, save SaveFunc) error {
 	var schemas []Schema
-	if body, err := ioutil.ReadFile(filepath.Join(path, name)); err != nil {
-		return fmt.Errorf("%w", err)
+	if body, err := os.ReadFile(filepath.Join(path, name)); err != nil {
+		return errors.WithStack(err)
 	} else {
 		if strings.HasSuffix(name, ".json") {
 			if schemas, err = ParseJson(name, body); err != nil {
-				return fmt.Errorf("%w", err)
+				return errors.WithStack(err)
 			}
 		} else if strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml") {
 			if schemas, err = ParseYaml(name, body); err != nil {
-				return fmt.Errorf("%w", err)
+				return errors.WithStack(err)
 			}
 		}
 	}
@@ -216,13 +214,13 @@ func (v *FilesMigrate) createTable(ctx context.Context, api MigrationApi, path, 
 func saveMigration(ctx context.Context, api MigrationApi, name string) (err error) {
 	var item map[string]types.AttributeValue
 	if item, err = attributevalue.MarshalMap(&Migration{ID: name}); err != nil {
-		return fmt.Errorf("%w", err)
+		return errors.WithStack(err)
 	}
 	if _, err = api.PutItem(ctx, &dynamodb.PutItemInput{
 		Item:      item,
 		TableName: aws.String(MigrationTable),
 	}); err != nil {
-		return fmt.Errorf("%w", err)
+		return errors.WithStack(err)
 	}
 	return nil
 }

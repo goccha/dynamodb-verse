@@ -55,17 +55,31 @@ func main() {
 		config.WithClientLogMode(logLevel),
 		config.WithLogger(logging.NewStandardLogger(os.Stdout)), config.WithLogConfigurationWarnings(true),
 	); err != nil {
-		return
+		panic(err)
+	}
+	if !validate(cfg) {
+		if profile != "" {
+			fmt.Printf("Profile '%s' is not defined in the credentials file.", profile)
+		} else {
+			fmt.Printf("Default settings are not defined in the credeintials file.")
+		}
+		os.Exit(1)
 	}
 	var cli *dynamodb.Client
 	if local && endpoint == "" {
 		endpoint = "http://localhost:8000"
 	}
 	if endpoint = envar.Get("AWS_DYNAMODB_ENDPOINT").String(endpoint); endpoint != "" { // dynamodb-local対応
+		if strings.EqualFold(debug, "true") {
+			fmt.Printf("endpoint=%s\n", endpoint)
+		}
 		cli = dynamodb.NewFromConfig(cfg, dynamodb.WithEndpointResolver(
 			dynamodb.EndpointResolverFromURL(endpoint)),
 		)
 	} else {
+		if strings.EqualFold(debug, "true") {
+			fmt.Printf("endpoint=default\n")
+		}
 		cli = dynamodb.NewFromConfig(cfg)
 	}
 	if dirPath == "" {
@@ -78,4 +92,24 @@ func main() {
 
 func Version() string {
 	return fmt.Sprintf("%s-%s", strings.ReplaceAll(version, "/", "_"), revision)
+}
+
+func validate(cfg aws.Config) bool {
+	for _, v := range cfg.ConfigSources {
+		switch opt := v.(type) {
+		case config.LoadOptions:
+			if opt.Credentials != nil {
+				return true
+			}
+		case config.EnvConfig:
+			if opt.Credentials.AccessKeyID != "" {
+				return true
+			}
+		case config.SharedConfig:
+			if opt.Credentials.AccessKeyID != "" {
+				return true
+			}
+		}
+	}
+	return false
 }

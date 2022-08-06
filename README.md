@@ -1,18 +1,20 @@
 # dynamodb-verse
 
+## dynamodb-migrate
+Use cloudformation file to create tables in dynamodb.
 
-## Installation
+### Installation
 ```shell
-go install github.com/goccha/dynamodb-verse@latest ./...
+go install github.com/goccha/dynamodb-verse/cmd/dynamodb-migrate@latest
 ```
 
-## migration
+### migration
 
 ```shell
-dynamodb-migrate --path=configs/dynamodb --endpoint=http://localhost:8081
+dynamodb-migrate --path=configs/dynamodb
 ```
 
-### parameters
+#### parameters
 
 | key      | default          | description                                      | example               |
 |----------|------------------|--------------------------------------------------|-----------------------|
@@ -25,7 +27,7 @@ dynamodb-migrate --path=configs/dynamodb --endpoint=http://localhost:8081
 | version  |                  | show version                                     |                       |
 | h        |                  | help message                                     |                       |
 
-### environment values
+#### environment values
 Arguments take precedence over environment variables.
 
 | key                   | default | description           |
@@ -35,4 +37,3 @@ Arguments take precedence over environment variables.
 | AWS_PROFILE           |         | aws profile name      |
 | AWS_DYNAMODB_ENDPOINT |         | dynamodb endpoint     |
 | DYNAMODB_CONFIG_PATH  |         | config directory path |
-

@@ -6,7 +6,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/goccha/logging/log"
 	"github.com/pkg/errors"
 	"reflect"
 )
@@ -69,8 +68,7 @@ func Put(ctx context.Context, cli WriteClient, items WriteItemFunc) error {
 	if err != nil {
 		return err
 	} else {
-		var out *dynamodb.PutItemOutput
-		if out, err = cli.PutItem(ctx, &dynamodb.PutItemInput{
+		if _, err = cli.PutItem(ctx, &dynamodb.PutItemInput{
 			Item:                      item,
 			TableName:                 aws.String(table),
 			ExpressionAttributeNames:  expr.Names(),
@@ -78,8 +76,6 @@ func Put(ctx context.Context, cli WriteClient, items WriteItemFunc) error {
 			ConditionExpression:       expr.Condition(),
 		}); err != nil {
 			return errors.WithStack(err)
-		} else {
-			log.Debug(ctx).Msgf("%+v", out)
 		}
 	}
 	return nil

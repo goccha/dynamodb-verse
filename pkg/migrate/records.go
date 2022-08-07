@@ -17,15 +17,12 @@ func SaveRecord(ctx context.Context, api MigrationApi, tableName string, record 
 	if item, err = attributevalue.MarshalMap(record); err != nil {
 		return
 	} else {
-		var out *dynamodb.PutItemOutput
-		if out, err = api.PutItem(ctx, &dynamodb.PutItemInput{
+		if _, err = api.PutItem(ctx, &dynamodb.PutItemInput{
 			Item:      item,
 			TableName: &tableName,
 		}); err != nil {
 			log.Error(ctx).Str("table", tableName).Err(err).Send()
 			return errors.WithStack(err)
-		} else {
-			log.Debug(ctx).Msgf("%+v", out)
 		}
 	}
 	return

@@ -33,7 +33,13 @@ func IsNil(record interface{}) bool {
 	}
 }
 
-var ErrNotFound *types.ResourceNotFoundException
+type RecordNotFoundException struct{}
+
+func (err *RecordNotFoundException) Error() string {
+	return "record not found"
+}
+
+var ErrNotFound *RecordNotFoundException
 
 func IsNotFound(err error) bool {
 	return errors.As(err, &ErrNotFound)
@@ -66,7 +72,7 @@ func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItem
 			return nil
 		}
 	}
-	return nil
+	return ErrNotFound
 }
 
 func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, fetch FetchItemsFunc) error {
@@ -94,7 +100,7 @@ func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, f
 			return err
 		}
 	}
-	return nil
+	return ErrNotFound
 }
 
 func Put(ctx context.Context, cli WriteClient, items WriteItemFunc) error {

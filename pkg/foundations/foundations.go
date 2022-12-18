@@ -75,7 +75,7 @@ func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItem
 	return ErrNotFound
 }
 
-func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, fetch FetchItemsFunc) error {
+func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, fetch FetchItemsFunc, limit ...int32) error {
 	table, index, expr, desc, err := condition()
 	if err != nil {
 		return err
@@ -85,6 +85,10 @@ func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, f
 	if index != "" {
 		indexName = aws.String(index)
 	}
+	var queryLimit *int32
+	if len(limit) > 0 {
+		queryLimit = &limit[0]
+	}
 	if out, err = cli.Query(ctx, &dynamodb.QueryInput{
 		TableName:                 &table,
 		IndexName:                 indexName,
@@ -92,6 +96,7 @@ func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, f
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 		FilterExpression:          expr.Filter(),
+		Limit:                     queryLimit,
 		ScanIndexForward:          aws.Bool(!desc),
 	}); err != nil {
 		return errors.WithStack(err)

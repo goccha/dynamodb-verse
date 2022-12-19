@@ -103,6 +103,8 @@ func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, f
 	} else if len(out.Items) > 0 {
 		if err = fetch(table, out.Items); err != nil {
 			return err
+		} else {
+			return nil
 		}
 	}
 	return ErrNotFound

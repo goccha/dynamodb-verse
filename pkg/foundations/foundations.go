@@ -15,6 +15,10 @@ type GetClient interface {
 	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
 }
 
+type ScanClient interface {
+	Scan(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
+}
+
 type QueryClient interface {
 	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 }
@@ -68,6 +72,23 @@ func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItem
 	} else if out.Item != nil {
 		if err = fetch(table, out.Item); err != nil {
 			return errors.WithStack(err)
+		} else {
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+func Scan(ctx context.Context, cli ScanClient, table string, fetch FetchItemsFunc) error {
+	out, err := cli.Scan(ctx, &dynamodb.ScanInput{
+		TableName: aws.String(table),
+	})
+	if err != nil {
+		return err
+	}
+	if len(out.Items) > 0 {
+		if err = fetch(table, out.Items); err != nil {
+			return err
 		} else {
 			return nil
 		}

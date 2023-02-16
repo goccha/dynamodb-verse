@@ -31,7 +31,12 @@ func (s SecondaryIndex) CreateLocal() types.LocalSecondaryIndex {
 	}
 	local.KeySchema = s.Keys.Elements()
 	if s.Projection != nil {
-		local.Projection = s.Projection.Element()
+		local.Projection = func() *types.Projection {
+			if s.Projection != nil {
+				return s.Projection.Element()
+			}
+			return nil
+		}()
 	}
 	return local
 }
@@ -120,10 +125,20 @@ func (indexes SecondaryIndexes) UpdateGlobals(desc types.TableDescription) []typ
 			for _, v := range indexes {
 				updates = append(updates, types.GlobalSecondaryIndexUpdate{
 					Create: &types.CreateGlobalSecondaryIndexAction{
-						IndexName:             aws.String(v.Name),
-						KeySchema:             v.Keys.Elements(),
-						Projection:            v.Projection.Element(),
-						ProvisionedThroughput: v.Throughput.Element(),
+						IndexName: aws.String(v.Name),
+						KeySchema: v.Keys.Elements(),
+						Projection: func() *types.Projection {
+							if v.Projection != nil {
+								return v.Projection.Element()
+							}
+							return nil
+						}(),
+						ProvisionedThroughput: func() *types.ProvisionedThroughput {
+							if v.Throughput != nil {
+								return v.Throughput.Element()
+							}
+							return nil
+						}(),
 					},
 				})
 			}

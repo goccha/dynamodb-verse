@@ -3,8 +3,10 @@ package batches
 import (
 	"context"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/goccha/dynamodb-verse/pkg/foundations"
 )
 
 const (
@@ -12,6 +14,22 @@ const (
 )
 
 type WriteItemFunc func() (table string, item map[string]types.AttributeValue, err error)
+
+func PutItems(items ...foundations.WriteItemFunc) []WriteItemFunc {
+	res := make([]WriteItemFunc, 0, len(items))
+	for _, v := range items {
+		f := v
+		res = append(res, func() (table string, item map[string]types.AttributeValue, err error) {
+			table, item, _, err = f()
+			return
+		})
+	}
+	return res
+}
+
+func DeleteItems(items ...foundations.WriteItemFunc) []WriteItemFunc {
+	return PutItems(items...)
+}
 
 type writeItem struct {
 	items map[string][]types.WriteRequest

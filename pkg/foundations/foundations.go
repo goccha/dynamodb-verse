@@ -185,6 +185,7 @@ func Delete(ctx context.Context, cli WriteClient, items WriteItemFunc) error {
 }
 
 type WriteItemFunc func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error)
+type GetItemFunc WriteItemFunc
 
 type UpdateField func(ctx context.Context, builder *expression.UpdateBuilder) expression.UpdateBuilder
 

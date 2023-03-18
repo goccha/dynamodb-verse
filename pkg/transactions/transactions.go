@@ -2,13 +2,13 @@ package transactions
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
-	"time"
 )
 
 const (
@@ -145,7 +145,7 @@ func (builder *Builder) Run(ctx context.Context, cli Client) (out *dynamodb.Tran
 
 func run(ctx context.Context, cli Client, items []types.TransactWriteItem) (out *dynamodb.TransactWriteItemsOutput, err error) {
 	if len(items) > MaxItems {
-		return nil, errors.New("transaction size is within 25 items")
+		return nil, fmt.Errorf("transaction size is within %d items", MaxItems)
 	}
 	if out, err = cli.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: items}); err != nil {
 		return nil, fmt.Errorf("%w", err)
@@ -155,4 +155,5 @@ func run(ctx context.Context, cli Client, items []types.TransactWriteItem) (out 
 
 type Client interface {
 	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
+	TransactGetItems(ctx context.Context, params *dynamodb.TransactGetItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactGetItemsOutput, error)
 }

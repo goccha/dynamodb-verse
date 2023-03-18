@@ -3,6 +3,7 @@ package batches
 import (
 	"context"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -71,8 +72,8 @@ func batchWrite(ctx context.Context, cli WriteClient, tableName string, entities
 }
 
 func (builder *Batch) Delete(ctx context.Context, cli WriteClient) error {
-	for i := 0; i < len(builder.entities); i += 25 {
-		end := i + 25
+	for i := 0; i < len(builder.entities); i += MaxWriteItems {
+		end := i + MaxWriteItems
 		if end > len(builder.entities) {
 			end = len(builder.entities)
 		}

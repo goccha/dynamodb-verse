@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/goccha/dynamodb-verse/pkg/foundations/options"
 	"github.com/pkg/errors"
 )
 
@@ -51,137 +52,169 @@ func IsNotFound(err error) bool {
 
 type GetKeyFunc func() (table string, keys map[string]types.AttributeValue, attrs []string, err error)
 
-type QueryConditionFunc func() (table, index string, expr expression.Expression, desc bool, err error)
+type QueryConditionFunc func() (table, index string, expr expression.Expression, err error)
 
 type FetchItemFunc func(tableName string, value map[string]types.AttributeValue) error
 
 type FetchItemsFunc func(tableName string, value []map[string]types.AttributeValue) error
 
-func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItemFunc) error {
+func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItemFunc, opt ...options.Option) (*dynamodb.GetItemOutput, error) {
 	table, keys, attrs, err := getKeys()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var out *dynamodb.GetItemOutput
-	if out, err = cli.GetItem(ctx, &dynamodb.GetItemInput{
+	input := &dynamodb.GetItemInput{
 		Key:             keys,
 		AttributesToGet: attrs,
 		TableName:       &table,
-	}); err != nil {
-		return errors.WithStack(err)
-	} else if out.Item != nil {
-		if err = fetch(table, out.Item); err != nil {
-			return errors.WithStack(err)
-		} else {
-			return nil
+	}
+	if len(opt) > 0 {
+		for _, f := range opt {
+			input = f(input).(*dynamodb.GetItemInput)
 		}
 	}
-	return ErrNotFound
+	var out *dynamodb.GetItemOutput
+	if out, err = cli.GetItem(ctx, input); err != nil {
+		return nil, errors.WithStack(err)
+	} else if out.Item != nil {
+		if err = fetch(table, out.Item); err != nil {
+			return nil, errors.WithStack(err)
+		} else {
+			return out, nil
+		}
+	}
+	return nil, errors.WithStack(ErrNotFound)
 }
 
-func Scan(ctx context.Context, cli ScanClient, table string, fetch FetchItemsFunc) error {
-	out, err := cli.Scan(ctx, &dynamodb.ScanInput{
+func Scan(ctx context.Context, cli ScanClient, table string, fetch FetchItemsFunc, opt ...options.Option) (*dynamodb.ScanOutput, error) {
+	input := &dynamodb.ScanInput{
 		TableName: aws.String(table),
-	})
+	}
+	if len(opt) > 0 {
+		for _, f := range opt {
+			input = f(input).(*dynamodb.ScanInput)
+		}
+	}
+	out, err := cli.Scan(ctx, input)
 	if err != nil {
-		return err
+		return nil, errors.WithStack(err)
 	}
 	if len(out.Items) > 0 {
 		if err = fetch(table, out.Items); err != nil {
-			return err
+			return nil, err
 		} else {
-			return nil
+			return out, nil
 		}
 	}
-	return ErrNotFound
+	return nil, errors.WithStack(ErrNotFound)
 }
 
-func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, fetch FetchItemsFunc, limit ...int32) error {
-	table, index, expr, desc, err := condition()
+func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, fetch FetchItemsFunc, opt ...options.Option) (*dynamodb.QueryOutput, error) {
+	table, index, expr, err := condition()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var out *dynamodb.QueryOutput
 	var indexName *string
 	if index != "" {
 		indexName = aws.String(index)
 	}
-	var queryLimit *int32
-	if len(limit) > 0 {
-		queryLimit = &limit[0]
-	}
-	if out, err = cli.Query(ctx, &dynamodb.QueryInput{
+	input := &dynamodb.QueryInput{
 		TableName:                 &table,
 		IndexName:                 indexName,
 		KeyConditionExpression:    expr.KeyCondition(),
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 		FilterExpression:          expr.Filter(),
-		Limit:                     queryLimit,
-		ScanIndexForward:          aws.Bool(!desc),
-	}); err != nil {
-		return errors.WithStack(err)
+	}
+	if len(opt) > 0 {
+		for _, f := range opt {
+			input = f(input).(*dynamodb.QueryInput)
+		}
+	}
+	if out, err = cli.Query(ctx, input); err != nil {
+		return nil, errors.WithStack(err)
 	} else if len(out.Items) > 0 {
 		if err = fetch(table, out.Items); err != nil {
-			return err
+			return nil, err
 		} else {
-			return nil
+			return out, nil
 		}
 	}
-	return ErrNotFound
+	return nil, ErrNotFound
 }
 
-func Put(ctx context.Context, cli WriteClient, items WriteItemFunc) error {
+func Put(ctx context.Context, cli WriteClient, items WriteItemFunc, opt ...options.Option) (*dynamodb.PutItemOutput, error) {
 	table, item, expr, err := items()
 	if err != nil {
-		return err
-	} else {
-		if _, err = cli.PutItem(ctx, &dynamodb.PutItemInput{
-			Item:                      item,
-			TableName:                 &table,
-			ExpressionAttributeNames:  expr.Names(),
-			ExpressionAttributeValues: expr.Values(),
-			ConditionExpression:       expr.Condition(),
-		}); err != nil {
-			return errors.WithStack(err)
+		return nil, err
+	}
+	input := &dynamodb.PutItemInput{
+		Item:                      item,
+		TableName:                 &table,
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		ConditionExpression:       expr.Condition(),
+	}
+	if len(opt) > 0 {
+		for _, f := range opt {
+			input = f(input).(*dynamodb.PutItemInput)
 		}
 	}
-	return nil
+	var out *dynamodb.PutItemOutput
+	if out, err = cli.PutItem(ctx, input); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return out, nil
 }
 
-func Update(ctx context.Context, cli WriteClient, items WriteItemFunc) error {
+func Update(ctx context.Context, cli WriteClient, items WriteItemFunc, opt ...options.Option) (*dynamodb.UpdateItemOutput, error) {
 	table, item, expr, err := items()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if _, err = cli.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+	input := &dynamodb.UpdateItemInput{
 		Key:                       item,
 		TableName:                 &table,
 		UpdateExpression:          expr.Update(),
 		ExpressionAttributeValues: expr.Values(),
 		ExpressionAttributeNames:  expr.Names(),
 		ConditionExpression:       expr.Condition(),
-	}); err != nil {
-		return errors.WithStack(err)
 	}
-	return nil
+	if len(opt) > 0 {
+		for _, f := range opt {
+			input = f(input).(*dynamodb.UpdateItemInput)
+		}
+	}
+	var out *dynamodb.UpdateItemOutput
+	if out, err = cli.UpdateItem(ctx, input); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return out, nil
 }
 
-func Delete(ctx context.Context, cli WriteClient, items WriteItemFunc) error {
+func Delete(ctx context.Context, cli WriteClient, items WriteItemFunc, opt ...options.Option) (*dynamodb.DeleteItemOutput, error) {
 	table, keys, expr, err := items()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if _, err = cli.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+	input := &dynamodb.DeleteItemInput{
 		Key:                       keys,
 		TableName:                 &table,
 		ConditionExpression:       expr.Condition(),
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
-	}); err != nil {
-		return err
 	}
-	return nil
+	if len(opt) > 0 {
+		for _, f := range opt {
+			input = f(input).(*dynamodb.DeleteItemInput)
+		}
+	}
+	var out *dynamodb.DeleteItemOutput
+	if out, err = cli.DeleteItem(ctx, input); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 type WriteItemFunc func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error)

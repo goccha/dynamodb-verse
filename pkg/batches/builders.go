@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
+	"github.com/goccha/dynamodb-verse/pkg/foundations/options"
 )
 
 const (
@@ -60,13 +61,17 @@ func (bi *writeItem) Put(table string, req types.WriteRequest) (item *writeItem,
 	item.size++
 	return item, false
 }
-func (bi writeItem) run(ctx context.Context, cli WriteClient) (err error) {
+func (bi writeItem) run(ctx context.Context, cli WriteClient, opt ...options.Option) (err error) {
 	body := bi.items
 	for len(body) > 0 {
 		var out *dynamodb.BatchWriteItemOutput
-		out, err = cli.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+		input := &dynamodb.BatchWriteItemInput{
 			RequestItems: body,
-		})
+		}
+		for _, f := range opt {
+			input = f(input).(*dynamodb.BatchWriteItemInput)
+		}
+		out, err = cli.BatchWriteItem(ctx, input)
 		if err != nil {
 			return fmt.Errorf("%w", err)
 		}
@@ -151,12 +156,12 @@ func (builder *Builder) get(length int) *writeItem {
 	return bi
 }
 
-func (builder *Builder) Run(ctx context.Context, cli WriteClient) (err error) {
+func (builder *Builder) Run(ctx context.Context, cli WriteClient, opt ...options.Option) (err error) {
 	if builder.err != nil {
 		return builder.err
 	}
 	for _, v := range builder.items {
-		if err = v.run(ctx, cli); err != nil {
+		if err = v.run(ctx, cli, opt...); err != nil {
 			return err
 		}
 	}

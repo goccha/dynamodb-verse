@@ -22,6 +22,8 @@ func ReturnConsumedCapacity(capacity types.ReturnConsumedCapacity) Option {
 			in.ReturnConsumedCapacity = capacity
 		case *dynamodb.ScanInput:
 			in.ReturnConsumedCapacity = capacity
+		case *dynamodb.BatchWriteItemInput:
+			in.ReturnConsumedCapacity = capacity
 		}
 		return input
 	}
@@ -82,5 +84,21 @@ func ScanIndexForward(asc bool) Option {
 			in.ScanIndexForward = &asc
 		}
 		return input
+	}
+}
+
+func ReturnValuesOnConditionCheckFailure(value types.ReturnValuesOnConditionCheckFailure) Option {
+	return func(input any) any {
+		return func(input any) any {
+			switch in := input.(type) {
+			case *types.Put:
+				in.ReturnValuesOnConditionCheckFailure = value
+			case *types.Update:
+				in.ReturnValuesOnConditionCheckFailure = value
+			case *types.Delete:
+				in.ReturnValuesOnConditionCheckFailure = value
+			}
+			return input
+		}
 	}
 }

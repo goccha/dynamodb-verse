@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
+	"github.com/goccha/dynamodb-verse/pkg/foundations/options"
 )
 
 const (
@@ -21,14 +22,16 @@ type Transaction interface {
 	UpdateItem(ctx context.Context, fields ...foundations.UpdateField) foundations.WriteItemFunc
 }
 
-func New() *Builder {
+func New(opt ...options.Option) *Builder {
 	return &Builder{
 		items: make([]types.TransactWriteItem, 0, MaxItems),
+		opt:   opt,
 	}
 }
 
 type Builder struct {
 	items []types.TransactWriteItem
+	opt   []options.Option
 	err   error
 }
 
@@ -50,14 +53,18 @@ func (builder *Builder) Put(keys ...foundations.WriteItemFunc) *Builder {
 			builder.err = err
 			return builder
 		} else {
+			input := &types.Put{
+				TableName:                 aws.String(table),
+				Item:                      item,
+				ExpressionAttributeNames:  expr.Names(),
+				ExpressionAttributeValues: expr.Values(),
+				ConditionExpression:       expr.Condition(),
+			}
+			for _, f := range builder.opt {
+				input = f(input).(*types.Put)
+			}
 			items = append(items, types.TransactWriteItem{
-				Put: &types.Put{
-					TableName:                 aws.String(table),
-					Item:                      item,
-					ExpressionAttributeNames:  expr.Names(),
-					ExpressionAttributeValues: expr.Values(),
-					ConditionExpression:       expr.Condition(),
-				},
+				Put: input,
 			})
 		}
 	}
@@ -79,14 +86,18 @@ func (builder *Builder) Delete(keys ...foundations.WriteItemFunc) *Builder {
 			builder.err = err
 			return builder
 		} else {
+			input := &types.Delete{
+				TableName:                 aws.String(table),
+				Key:                       item,
+				ExpressionAttributeNames:  expr.Names(),
+				ExpressionAttributeValues: expr.Values(),
+				ConditionExpression:       expr.Condition(),
+			}
+			for _, f := range builder.opt {
+				input = f(input).(*types.Delete)
+			}
 			items = append(items, types.TransactWriteItem{
-				Delete: &types.Delete{
-					TableName:                 aws.String(table),
-					Key:                       item,
-					ExpressionAttributeNames:  expr.Names(),
-					ExpressionAttributeValues: expr.Values(),
-					ConditionExpression:       expr.Condition(),
-				},
+				Delete: input,
 			})
 		}
 	}
@@ -108,15 +119,19 @@ func (builder *Builder) Update(keys ...foundations.WriteItemFunc) *Builder {
 			builder.err = err
 			return builder
 		} else {
+			input := &types.Update{
+				Key:                       item,
+				TableName:                 aws.String(table),
+				UpdateExpression:          expr.Update(),
+				ExpressionAttributeValues: expr.Values(),
+				ExpressionAttributeNames:  expr.Names(),
+				ConditionExpression:       expr.Condition(),
+			}
+			for _, f := range builder.opt {
+				input = f(input).(*types.Update)
+			}
 			items = append(items, types.TransactWriteItem{
-				Update: &types.Update{
-					Key:                       item,
-					TableName:                 aws.String(table),
-					UpdateExpression:          expr.Update(),
-					ExpressionAttributeValues: expr.Values(),
-					ExpressionAttributeNames:  expr.Names(),
-					ConditionExpression:       expr.Condition(),
-				},
+				Update: input,
 			})
 		}
 	}

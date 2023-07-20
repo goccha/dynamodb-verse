@@ -2,6 +2,10 @@ package migrate
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -9,9 +13,6 @@ import (
 	"github.com/goccha/logging/log"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 type MigrationApi interface {
@@ -27,6 +28,7 @@ type MigrationApi interface {
 }
 
 type Migrate interface {
+	Read(ctx context.Context) (schemas []Schema, err error)
 	Run(ctx context.Context, save SaveFunc) error
 }
 
@@ -40,6 +42,14 @@ func Parse(api MigrationApi, schema string) Migrate {
 type SchemaMigrate struct {
 	api    MigrationApi
 	schema string
+}
+
+func (v *SchemaMigrate) Read(ctx context.Context) (schemas []Schema, err error) {
+	ts := &TableSchema{}
+	if err = yaml.Unmarshal([]byte(v.schema), ts); err != nil {
+		return nil, err
+	}
+	return []Schema{{Table: *ts}}, nil
 }
 
 func (v *SchemaMigrate) Run(ctx context.Context, save SaveFunc) (err error) {
@@ -64,6 +74,26 @@ func New(api MigrationApi, dirPath ...string) Migrate {
 		api:     api,
 		dirPath: dirPath,
 	}
+}
+
+func (v *FilesMigrate) Read(ctx context.Context) (schemas []Schema, err error) {
+	for _, path := range v.dirPath {
+		var files []os.DirEntry
+		if files, err = os.ReadDir(path); err != nil {
+			return nil, err
+		}
+		for _, f := range files {
+			switch filepath.Ext(f.Name()) {
+			case ".json", ".yaml", ".yml":
+				if s, err := v.read(path, f); err != nil {
+					return nil, err
+				} else if len(s) > 0 {
+					schemas = append(schemas, s...)
+				}
+			}
+		}
+	}
+	return
 }
 
 func (v *FilesMigrate) Run(ctx context.Context, save SaveFunc) (err error) {
@@ -133,6 +163,24 @@ func migrated(ctx context.Context, api MigrationApi, name string) (bool, error) 
 		}
 	}
 	return out != nil && len(out.Item) > 0, nil
+}
+
+func (v *FilesMigrate) read(path string, file os.DirEntry) (schemas []Schema, err error) {
+	name := file.Name()
+	if body, err := os.ReadFile(filepath.Join(path, name)); err != nil {
+		return nil, errors.WithStack(err)
+	} else {
+		if strings.HasSuffix(name, ".json") {
+			if schemas, err = ParseJson(name, body); err != nil {
+				return nil, errors.WithStack(err)
+			}
+		} else if strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml") {
+			if schemas, err = ParseYaml(name, body); err != nil {
+				return nil, errors.WithStack(err)
+			}
+		}
+	}
+	return
 }
 
 func (v *FilesMigrate) migrate(ctx context.Context, api MigrationApi, path string, file os.DirEntry, save SaveFunc) error {

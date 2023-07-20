@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -69,8 +70,10 @@ func ParseYaml(name string, body []byte) (schemas []Schema, err error) {
 		if err = yaml.Unmarshal(body, s); err != nil {
 			return nil, errors.WithStack(err)
 		}
-		schemas = []Schema{
-			*s,
+		if s.Table.TableName != "" {
+			schemas = []Schema{
+				*s,
+			}
 		}
 	} else {
 		schemas = make([]Schema, 0, len(t.Resources))

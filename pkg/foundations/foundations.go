@@ -5,12 +5,20 @@ import (
 	"reflect"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations/options"
 	"github.com/pkg/errors"
 )
+
+type Client interface {
+	GetClient
+	ScanClient
+	QueryClient
+	WriteClient
+}
 
 type GetClient interface {
 	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
@@ -222,10 +230,62 @@ type GetItemFunc WriteItemFunc
 
 type UpdateField func(ctx context.Context, builder *expression.UpdateBuilder) expression.UpdateBuilder
 
-func UpdateItems(ctx context.Context, fields ...UpdateField) expression.UpdateBuilder {
+func UpdateBuilder(ctx context.Context, fields ...UpdateField) expression.UpdateBuilder {
 	var builder expression.UpdateBuilder
 	for _, v := range fields {
 		builder = v(ctx, &builder)
 	}
 	return builder
+}
+
+func PutItem(tableName string, rec any) WriteItemFunc {
+	return func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error) {
+		if item, err = attributevalue.MarshalMap(rec); err != nil {
+			err = errors.WithStack(err)
+			return
+		}
+		table = tableName
+		return
+	}
+}
+
+func DeleteItem(keyFunc GetKeyFunc) WriteItemFunc {
+	return func() (table string, keys map[string]types.AttributeValue, expr expression.Expression, err error) {
+		table, keys, _, err = keyFunc()
+		return
+	}
+}
+
+func UpdateItem(ctx context.Context, keyFunc GetKeyFunc, count int, fields ...UpdateField) WriteItemFunc {
+	return func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error) {
+		table, item, _, err = keyFunc()
+		if err != nil {
+			return
+		}
+		builder := UpdateBuilder(ctx, fields...).Set(expression.Name("update_cnt"), expression.Value(count+1))
+		condition := expression.Equal(expression.Name("update_cnt"), expression.Value(count))
+		if expr, err = expression.NewBuilder().WithUpdate(builder).WithCondition(condition).Build(); err != nil {
+			err = errors.WithStack(err)
+			return
+		}
+		return
+	}
+}
+
+func FetchItem[T any](rec *T) FetchItemFunc {
+	return func(tableName string, value map[string]types.AttributeValue) error {
+		if err := attributevalue.UnmarshalMap(value, rec); err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
+	}
+}
+
+func FetchItems[T any](rec *[]T) FetchItemsFunc {
+	return func(tableName string, values []map[string]types.AttributeValue) error {
+		if err := attributevalue.UnmarshalListOfMaps(values, rec); err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
+	}
 }

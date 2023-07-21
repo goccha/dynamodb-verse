@@ -238,8 +238,15 @@ func UpdateBuilder(ctx context.Context, fields ...UpdateField) expression.Update
 	return builder
 }
 
-func PutItem(tableName string, rec any) WriteItemFunc {
+type PutItemPreprocessor interface {
+	BeforePutItem(ctx context.Context) any
+}
+
+func PutItem(ctx context.Context, tableName string, rec any) WriteItemFunc {
 	return func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error) {
+		if preprocessor, ok := rec.(PutItemPreprocessor); ok {
+			rec = preprocessor.BeforePutItem(ctx)
+		}
 		if item, err = attributevalue.MarshalMap(rec); err != nil {
 			err = errors.WithStack(err)
 			return
@@ -281,11 +288,20 @@ func FetchItem[T any](rec *T) FetchItemFunc {
 	}
 }
 
-func FetchItems[T any](rec *[]T) FetchItemsFunc {
+func FetchItems[T any](rec *T) FetchItemsFunc {
 	return func(tableName string, values []map[string]types.AttributeValue) error {
 		if err := attributevalue.UnmarshalListOfMaps(values, rec); err != nil {
 			return errors.WithStack(err)
 		}
 		return nil
+	}
+}
+
+func UpdateValue(name string, value any) UpdateField {
+	return func(ctx context.Context, builder *expression.UpdateBuilder) expression.UpdateBuilder {
+		if builder == nil {
+			return expression.Set(expression.Name(name), expression.Value(value))
+		}
+		return builder.Set(expression.Name(name), expression.Value(value))
 	}
 }

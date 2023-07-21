@@ -24,10 +24,10 @@ jobs:
     timeout-minutes: 300
 
     steps:
-      - name: Set up Go 1.19.2
+      - name: Set up Go 1.20.6
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19.2
+          go-version: 1.20.6
 
       - name: Check out code
         uses: actions/checkout@v3

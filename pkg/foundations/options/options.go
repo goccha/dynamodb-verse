@@ -102,3 +102,57 @@ func ReturnValuesOnConditionCheckFailure(value types.ReturnValuesOnConditionChec
 		}
 	}
 }
+
+func ConsistentRead(consistentRead *bool) Option {
+	return func(input any) any {
+		switch in := input.(type) {
+		case *dynamodb.QueryInput:
+			in.ConsistentRead = consistentRead
+		case *dynamodb.ScanInput:
+			in.ConsistentRead = consistentRead
+		}
+		return input
+	}
+}
+
+func ExclusiveStartKey(exclusiveStartKey map[string]types.AttributeValue) Option {
+	return func(input any) any {
+		switch in := input.(type) {
+		case *dynamodb.QueryInput:
+			in.ExclusiveStartKey = exclusiveStartKey
+		case *dynamodb.ScanInput:
+			in.ExclusiveStartKey = exclusiveStartKey
+		}
+		return input
+	}
+}
+
+func Select(selectType types.Select) Option {
+	return func(input any) any {
+		switch in := input.(type) {
+		case *dynamodb.QueryInput:
+			in.Select = selectType
+		case *dynamodb.ScanInput:
+			in.Select = selectType
+		}
+		return input
+	}
+}
+
+func Segment(segment *int32) Option {
+	return func(input any) any {
+		if in, ok := input.(*dynamodb.ScanInput); ok {
+			in.Segment = segment
+		}
+		return input
+	}
+}
+
+func TotalSegments(totalSegments *int32) Option {
+	return func(input any) any {
+		if in, ok := input.(*dynamodb.ScanInput); ok {
+			in.TotalSegments = totalSegments
+		}
+		return input
+	}
+}

@@ -11,7 +11,7 @@ require (
 	github.com/aws/smithy-go v1.13.5
 	github.com/gertd/go-pluralize v0.2.1
 	github.com/goccha/envar v0.2.0
-	github.com/goccha/logging v0.1.2
+	github.com/goccha/logging v0.1.3
 	github.com/google/uuid v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/stoewer/go-strcase v1.3.0

@@ -62,6 +62,8 @@ type GetKeyFunc func() (table string, keys map[string]types.AttributeValue, attr
 
 type QueryConditionFunc func() (table, index string, expr expression.Expression, err error)
 
+type ScanFilterFunc func() (table string, expr expression.Expression, err error)
+
 type FetchItemFunc func(tableName string, value map[string]types.AttributeValue) error
 
 type FetchItemsFunc func(tableName string, value []map[string]types.AttributeValue) error
@@ -94,9 +96,17 @@ func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItem
 	return nil, errors.WithStack(ErrNotFound)
 }
 
-func Scan(ctx context.Context, cli ScanClient, table string, fetch FetchItemsFunc, opt ...options.Option) (*dynamodb.ScanOutput, error) {
+func Scan(ctx context.Context, cli ScanClient, condition ScanFilterFunc, fetch FetchItemsFunc, opt ...options.Option) (*dynamodb.ScanOutput, error) {
+	table, expr, err := condition()
+	if err != nil {
+		return nil, err
+	}
 	input := &dynamodb.ScanInput{
-		TableName: aws.String(table),
+		TableName:                 &table,
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		FilterExpression:          expr.Filter(),
+		ProjectionExpression:      expr.Projection(),
 	}
 	if len(opt) > 0 {
 		for _, f := range opt {
@@ -134,6 +144,7 @@ func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, f
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 		FilterExpression:          expr.Filter(),
+		ProjectionExpression:      expr.Projection(),
 	}
 	if len(opt) > 0 {
 		for _, f := range opt {

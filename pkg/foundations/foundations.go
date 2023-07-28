@@ -274,14 +274,29 @@ func DeleteItem(keyFunc GetKeyFunc) WriteItemFunc {
 	}
 }
 
-func UpdateItem(ctx context.Context, keyFunc GetKeyFunc, count int, fields ...UpdateField) WriteItemFunc {
+func UpdateItem(ctx context.Context, keyFunc GetKeyFunc, fields ...UpdateField) WriteItemFunc {
 	return func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error) {
 		table, item, _, err = keyFunc()
 		if err != nil {
 			return
 		}
-		builder := UpdateBuilder(ctx, fields...).Set(expression.Name("update_cnt"), expression.Value(count+1))
-		condition := expression.Equal(expression.Name("update_cnt"), expression.Value(count))
+		builder := UpdateBuilder(ctx, fields...)
+		if expr, err = expression.NewBuilder().WithUpdate(builder).Build(); err != nil {
+			err = errors.WithStack(err)
+			return
+		}
+		return
+	}
+}
+
+func ConsistentUpdateItem(ctx context.Context, keyFunc GetKeyFunc, fieldName string, count int, fields ...UpdateField) WriteItemFunc {
+	return func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error) {
+		table, item, _, err = keyFunc()
+		if err != nil {
+			return
+		}
+		builder := UpdateBuilder(ctx, fields...).Set(expression.Name(fieldName), expression.Value(count+1))
+		condition := expression.Equal(expression.Name(fieldName), expression.Value(count))
 		if expr, err = expression.NewBuilder().WithUpdate(builder).WithCondition(condition).Build(); err != nil {
 			err = errors.WithStack(err)
 			return

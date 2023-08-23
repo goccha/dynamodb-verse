@@ -10,24 +10,24 @@ import (
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
 )
 
-func NewBatch(tableName string, entities []interface{}) *Batch {
-	return &Batch{
+func NewBatch[T any](tableName string, entities []T) *Batch[T] {
+	return &Batch[T]{
 		tableName: tableName,
 		entities:  entities,
 	}
 }
 
-type Batch struct {
+type Batch[T any] struct {
 	tableName string
-	entities  []interface{}
+	entities  []T
 	err       error
 }
 
-func (builder *Batch) HasError() bool {
+func (builder *Batch[T]) HasError() bool {
 	return builder.err != nil
 }
 
-func (builder *Batch) Put(ctx context.Context, cli WriteClient) error {
+func (builder *Batch[T]) Put(ctx context.Context, cli WriteClient) error {
 	for i := 0; i < len(builder.entities); i += MaxWriteItems {
 		end := i + MaxWriteItems
 		if end > len(builder.entities) {
@@ -40,7 +40,7 @@ func (builder *Batch) Put(ctx context.Context, cli WriteClient) error {
 	return nil
 }
 
-func batchWrite(ctx context.Context, cli WriteClient, tableName string, entities []interface{}) (err error) {
+func batchWrite[T any](ctx context.Context, cli WriteClient, tableName string, entities []T) (err error) {
 	if len(entities) > MaxWriteItems {
 		return fmt.Errorf("batch write size is within %d items", MaxWriteItems)
 	}
@@ -71,7 +71,7 @@ func batchWrite(ctx context.Context, cli WriteClient, tableName string, entities
 	return nil
 }
 
-func (builder *Batch) Delete(ctx context.Context, cli WriteClient) error {
+func (builder *Batch[T]) Delete(ctx context.Context, cli WriteClient) error {
 	for i := 0; i < len(builder.entities); i += MaxWriteItems {
 		end := i + MaxWriteItems
 		if end > len(builder.entities) {
@@ -84,7 +84,7 @@ func (builder *Batch) Delete(ctx context.Context, cli WriteClient) error {
 	return nil
 }
 
-func batchDelete(ctx context.Context, cli WriteClient, tableName string, entities []interface{}) (err error) {
+func batchDelete[T any](ctx context.Context, cli WriteClient, tableName string, entities []T) (err error) {
 	if len(entities) > MaxWriteItems {
 		return fmt.Errorf("batch write size is within %d items", MaxWriteItems)
 	}
@@ -115,7 +115,7 @@ func batchDelete(ctx context.Context, cli WriteClient, tableName string, entitie
 	return nil
 }
 
-func (builder *Batch) Get(ctx context.Context, cli GetClient, fetch foundations.FetchItemFunc) (err error) {
+func (builder *Batch[T]) Get(ctx context.Context, cli GetClient, fetch foundations.FetchItemFunc) (err error) {
 	for i := 0; i < len(builder.entities); i += MaxGetItems {
 		end := i + MaxGetItems
 		if end > len(builder.entities) {
@@ -128,7 +128,7 @@ func (builder *Batch) Get(ctx context.Context, cli GetClient, fetch foundations.
 	return nil
 }
 
-func batchGet(ctx context.Context, cli GetClient, tableName string, entities []interface{}, fetch foundations.FetchItemFunc) (err error) {
+func batchGet[T any](ctx context.Context, cli GetClient, tableName string, entities []T, fetch foundations.FetchItemFunc) (err error) {
 	if len(entities) > MaxGetItems {
 		return fmt.Errorf("batch write size is within %d items", MaxGetItems)
 	}

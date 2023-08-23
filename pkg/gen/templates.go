@@ -5,7 +5,9 @@ const EntityTemplate = `
 package {{ .EntityPackage }}
 {{ end }}
 type {{ .EntityName }} struct {
-    {{ range .Fields }}{{ .Name }} {{ .Type }} {{ .BackQuote }}json:"{{ .JsonKey }}" dynamodbav:"{{ .ColumnName }}"{{ .BackQuote }}{{ end }}
+    {{- range .Fields }}
+	{{ .Name }} {{ .Type }} {{ .BackQuote }}json:"{{ .JsonKey }}" dynamodbav:"{{ .ColumnName }}"{{ .BackQuote }}
+	{{- end }}
 }
 `
 
@@ -49,7 +51,7 @@ func (rec {{ $DaoName }}) GetKey(ctx context.Context) foundations.GetKeyFunc {
 }
 
 func (rec {{ $DaoName }}) PutItem(ctx context.Context) foundations.WriteItemFunc {
-	return foundations.PutItem(rec.TableName(), rec)
+	return foundations.PutItem(ctx, rec.TableName(), rec)
 }
 
 func (rec {{ $DaoName }}) DeleteItem(ctx context.Context) foundations.WriteItemFunc {
@@ -57,7 +59,7 @@ func (rec {{ $DaoName }}) DeleteItem(ctx context.Context) foundations.WriteItemF
 }
 
 func (rec {{ $DaoName }}) UpdateItem(ctx context.Context, fields ...foundations.UpdateField) foundations.WriteItemFunc {
-	return foundations.UpdateItem(ctx, rec.GetKey(ctx), rec.UpdateCnt, fields...)
+	return foundations.UpdateItem(ctx, rec.GetKey(ctx), fields...)
 }
 
 func (rec *{{ $DaoName }}) Get(ctx context.Context) (res *{{ $DaoName }}, err error) {

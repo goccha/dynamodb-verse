@@ -49,9 +49,9 @@ func Setup(ctx context.Context, conf Config) (MigrationApi, error) {
 		if conf.Debug {
 			fmt.Printf("endpoint=%s\n", endpoint)
 		}
-		cli = dynamodb.NewFromConfig(cfg, dynamodb.WithEndpointResolver(
-			dynamodb.EndpointResolverFromURL(endpoint)),
-		)
+		cli = dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+		})
 	} else {
 		if conf.Debug {
 			fmt.Printf("endpoint=default\n")

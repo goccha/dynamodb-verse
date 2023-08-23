@@ -46,13 +46,7 @@ func IsNil(record interface{}) bool {
 	}
 }
 
-type RecordNotFoundException struct{}
-
-func (err *RecordNotFoundException) Error() string {
-	return "record not found"
-}
-
-var ErrNotFound *RecordNotFoundException
+var ErrNotFound *types.ResourceNotFoundException
 
 func IsNotFound(err error) bool {
 	return errors.As(err, &ErrNotFound)

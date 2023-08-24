@@ -2,6 +2,7 @@ package foundations
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -52,6 +53,11 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &ErrNotFound)
 }
 
+func NotFound(tableName string) *types.ResourceNotFoundException {
+	msg := fmt.Sprintf("Requested resource not found: %s: record not found", tableName)
+	return &types.ResourceNotFoundException{Message: &msg}
+}
+
 type GetKeyFunc func() (table string, keys map[string]types.AttributeValue, attrs []string, err error)
 
 type QueryConditionFunc func() (table, index string, expr expression.Expression, err error)
@@ -87,7 +93,7 @@ func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItem
 			return out, nil
 		}
 	}
-	return nil, errors.WithStack(ErrNotFound)
+	return nil, errors.WithStack(NotFound(table))
 }
 
 func Scan(ctx context.Context, cli ScanClient, condition ScanFilterFunc, fetch FetchItemsFunc, opt ...options.Option) (*dynamodb.ScanOutput, error) {
@@ -118,7 +124,7 @@ func Scan(ctx context.Context, cli ScanClient, condition ScanFilterFunc, fetch F
 			return out, nil
 		}
 	}
-	return nil, errors.WithStack(ErrNotFound)
+	return nil, errors.WithStack(NotFound(table))
 }
 
 func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, fetch FetchItemsFunc, opt ...options.Option) (*dynamodb.QueryOutput, error) {
@@ -154,7 +160,7 @@ func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, f
 			return out, nil
 		}
 	}
-	return nil, ErrNotFound
+	return nil, NotFound(table)
 }
 
 func Put(ctx context.Context, cli WriteClient, items WriteItemFunc, opt ...options.Option) (*dynamodb.PutItemOutput, error) {

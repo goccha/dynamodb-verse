@@ -71,28 +71,38 @@ func batchWrite[T any](ctx context.Context, cli WriteClient, tableName string, e
 	return nil
 }
 
-func (builder *Batch[T]) Delete(ctx context.Context, cli WriteClient) error {
+type DeleteKeyFunc func(v any) map[string]types.AttributeValue
+
+func (builder *Batch[T]) Delete(ctx context.Context, cli WriteClient, f ...DeleteKeyFunc) error {
 	for i := 0; i < len(builder.entities); i += MaxWriteItems {
 		end := i + MaxWriteItems
 		if end > len(builder.entities) {
 			end = len(builder.entities)
 		}
-		if err := batchDelete(ctx, cli, builder.tableName, builder.entities[i:end]); err != nil {
+		var getDeleteKey DeleteKeyFunc
+		if len(f) > 0 {
+			getDeleteKey = f[0]
+		}
+		if err := batchDelete(ctx, cli, builder.tableName, builder.entities[i:end], getDeleteKey); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func batchDelete[T any](ctx context.Context, cli WriteClient, tableName string, entities []T) (err error) {
+func batchDelete[T any](ctx context.Context, cli WriteClient, tableName string, entities []T, getDeleteKey DeleteKeyFunc) (err error) {
 	if len(entities) > MaxWriteItems {
 		return fmt.Errorf("batch write size is within %d items", MaxWriteItems)
 	}
 	items := make([]types.WriteRequest, 0, len(entities))
 	for _, v := range entities {
 		var av map[string]types.AttributeValue
-		if av, err = attributevalue.MarshalMap(v); err != nil {
-			return
+		if getDeleteKey != nil {
+			av = getDeleteKey(v)
+		} else {
+			if av, err = attributevalue.MarshalMap(v); err != nil {
+				return
+			}
 		}
 		items = append(items, types.WriteRequest{
 			DeleteRequest: &types.DeleteRequest{
@@ -108,7 +118,7 @@ func batchDelete[T any](ctx context.Context, cli WriteClient, tableName string, 
 			},
 		})
 		if err != nil {
-			return fmt.Errorf("batch write to %s: %w", tableName, err)
+			return fmt.Errorf("batch delete to %s: %w", tableName, err)
 		}
 		items = append(items[:0], out.UnprocessedItems[tableName]...) // スライスを初期化して未処理のitemsがあれば追加
 	}

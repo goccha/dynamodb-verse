@@ -36,11 +36,11 @@ type {{ $DaoName }} struct {
     UpdateCnt int {{ .BackQuote }}json:"-" dynamodbav:"update_cnt"{{ .BackQuote }}
 }
 
-func (rec {{ $DaoName }}) TableName() string {
+func (rec *{{ $DaoName }}) TableName() string {
     return "{{ .TableName }}"
 }
 
-func (rec {{ $DaoName }}) GetKey(ctx context.Context) foundations.GetKeyFunc {
+func (rec *{{ $DaoName }}) GetKey(ctx context.Context) foundations.GetKeyFunc {
     return func() (table string, keys map[string]types.AttributeValue, attrs []string, err error) {
         keys = map[string]types.AttributeValue {
             {{ range .Keys }}"{{ .ColumnName }}": &{{ .Type }}{Value: rec.{{ .FieldName }} },{{ end }}
@@ -50,15 +50,15 @@ func (rec {{ $DaoName }}) GetKey(ctx context.Context) foundations.GetKeyFunc {
     }
 }
 
-func (rec {{ $DaoName }}) PutItem(ctx context.Context) foundations.WriteItemFunc {
+func (rec *{{ $DaoName }}) PutItem(ctx context.Context) foundations.WriteItemFunc {
 	return foundations.PutItem(ctx, rec.TableName(), rec)
 }
 
-func (rec {{ $DaoName }}) DeleteItem(ctx context.Context) foundations.WriteItemFunc {
+func (rec *{{ $DaoName }}) DeleteItem(ctx context.Context) foundations.WriteItemFunc {
 	return foundations.DeleteItem(rec.GetKey(ctx))
 }
 
-func (rec {{ $DaoName }}) UpdateItem(ctx context.Context, fields ...foundations.UpdateField) foundations.WriteItemFunc {
+func (rec *{{ $DaoName }}) UpdateItem(ctx context.Context, fields ...foundations.UpdateField) foundations.WriteItemFunc {
 	return foundations.UpdateItem(ctx, rec.GetKey(ctx), fields...)
 }
 

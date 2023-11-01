@@ -253,7 +253,9 @@ type PutItemPreprocessor interface {
 	BeforePutItem(ctx context.Context) any
 }
 
-func PutItem(ctx context.Context, tableName string, rec any) WriteItemFunc {
+type ExpressionFunc func() (expr expression.Expression, err error)
+
+func PutItem(ctx context.Context, tableName string, rec any, f ...ExpressionFunc) WriteItemFunc {
 	return func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error) {
 		if preprocessor, ok := rec.(PutItemPreprocessor); ok {
 			rec = preprocessor.BeforePutItem(ctx)
@@ -261,6 +263,9 @@ func PutItem(ctx context.Context, tableName string, rec any) WriteItemFunc {
 		if item, err = attributevalue.MarshalMap(rec); err != nil {
 			err = errors.WithStack(err)
 			return
+		}
+		if len(f) > 0 {
+			expr, err = f[0]()
 		}
 		table = tableName
 		return

@@ -96,6 +96,13 @@ func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItem
 	return nil, errors.WithStack(NotFound(table))
 }
 
+// EnableErrorWithEmptyList Make the list return an error if it is empty.
+func EnableErrorWithEmptyList(v bool) {
+	errorWithEmptyList = v
+}
+
+var errorWithEmptyList = false
+
 func Scan(ctx context.Context, cli ScanClient, condition ScanFilterFunc, fetch FetchItemsFunc, opt ...options.Option) (*dynamodb.ScanOutput, error) {
 	table, expr, err := condition()
 	if err != nil {
@@ -124,7 +131,10 @@ func Scan(ctx context.Context, cli ScanClient, condition ScanFilterFunc, fetch F
 			return out, nil
 		}
 	}
-	return nil, errors.WithStack(NotFound(table))
+	if errorWithEmptyList {
+		return nil, errors.WithStack(NotFound(table))
+	}
+	return out, nil
 }
 
 func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, fetch FetchItemsFunc, opt ...options.Option) (*dynamodb.QueryOutput, error) {
@@ -160,7 +170,10 @@ func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, f
 			return out, nil
 		}
 	}
-	return nil, NotFound(table)
+	if errorWithEmptyList {
+		return nil, errors.WithStack(NotFound(table))
+	}
+	return out, nil
 }
 
 func Put(ctx context.Context, cli WriteClient, items WriteItemFunc, opt ...options.Option) (*dynamodb.PutItemOutput, error) {

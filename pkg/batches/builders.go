@@ -2,12 +2,12 @@ package batches
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
 	"github.com/goccha/dynamodb-verse/pkg/foundations/options"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -73,7 +73,7 @@ func (bi writeItem) run(ctx context.Context, cli WriteClient, opt ...options.Opt
 		}
 		out, err = cli.BatchWriteItem(ctx, input)
 		if err != nil {
-			return fmt.Errorf("%w", err)
+			return errors.WithStack(err)
 		}
 		body = out.UnprocessedItems // 未処理のアイテム
 	}

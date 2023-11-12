@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
 	"github.com/goccha/dynamodb-verse/pkg/foundations/options"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -163,7 +164,7 @@ func run(ctx context.Context, cli Client, items []types.TransactWriteItem) (out 
 		return nil, fmt.Errorf("transaction size is within %d items", MaxItems)
 	}
 	if out, err = cli.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: items}); err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, errors.WithStack(err)
 	}
 	return
 }

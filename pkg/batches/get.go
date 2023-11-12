@@ -2,10 +2,11 @@ package batches
 
 import (
 	"context"
-	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -55,7 +56,7 @@ func (gi *getItem) run(ctx context.Context, cli GetClient, fetch foundations.Fet
 			RequestItems: keys,
 		})
 		if err != nil {
-			return fmt.Errorf("%w", err)
+			return errors.WithStack(err)
 		}
 		for table, values := range out.Responses {
 			for _, v := range values {

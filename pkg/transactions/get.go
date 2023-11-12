@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -67,7 +68,7 @@ func get(ctx context.Context, cli Client, items []types.TransactGetItem, fetch f
 		return nil, fmt.Errorf("transaction size is within %d items", MaxGetItems)
 	}
 	if out, err = cli.TransactGetItems(ctx, &dynamodb.TransactGetItemsInput{TransactItems: items}); err != nil {
-		return nil, fmt.Errorf("%w", err)
+		return nil, errors.WithStack(err)
 	}
 	for i, v := range out.Responses { // each of which corresponds to the TransactGetItem object in the same position in the TransactItems array
 		if err = fetch(*items[i].Get.TableName, v.Item); err != nil {

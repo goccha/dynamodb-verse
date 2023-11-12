@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
+	"github.com/pkg/errors"
 )
 
 func NewBatch[T any](tableName string, entities []T) *Batch[T] {
@@ -160,7 +161,7 @@ func batchGet[T any](ctx context.Context, cli GetClient, tableName string, entit
 			RequestItems: keys,
 		})
 		if err != nil {
-			return fmt.Errorf("%w", err)
+			return errors.WithStack(err)
 		}
 		for table, values := range out.Responses {
 			for _, v := range values {

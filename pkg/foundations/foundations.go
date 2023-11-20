@@ -263,7 +263,7 @@ func UpdateBuilder(ctx context.Context, fields ...UpdateField) expression.Update
 }
 
 type PutItemPreprocessor interface {
-	BeforePutItem(ctx context.Context) any
+	BeforePutItem(ctx context.Context) (any, error)
 }
 
 type ExpressionFunc func() (expr expression.Expression, err error)
@@ -271,7 +271,11 @@ type ExpressionFunc func() (expr expression.Expression, err error)
 func PutItem(ctx context.Context, tableName string, rec any, f ...ExpressionFunc) WriteItemFunc {
 	return func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error) {
 		if preprocessor, ok := rec.(PutItemPreprocessor); ok {
-			rec = preprocessor.BeforePutItem(ctx)
+			rec, err = preprocessor.BeforePutItem(ctx)
+			if err != nil {
+				err = errors.WithStack(err)
+				return
+			}
 		}
 		if item, err = attributevalue.MarshalMap(rec); err != nil {
 			err = errors.WithStack(err)

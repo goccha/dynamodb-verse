@@ -18,7 +18,7 @@ type getItem struct {
 	size int
 }
 
-func (gi getItem) Size() int {
+func (gi *getItem) Size() int {
 	return gi.size
 }
 func (gi *getItem) Keys(table string, value map[string]types.AttributeValue, attrs []string) (key *getItem, newItem bool) {
@@ -48,26 +48,25 @@ func (gi *getItem) Keys(table string, value map[string]types.AttributeValue, att
 	return key, false
 }
 
-func (gi *getItem) run(ctx context.Context, cli GetClient, fetch foundations.FetchItemFunc) (err error) {
+func (gi *getItem) run(ctx context.Context, cli GetClient, fetch foundations.FetchItemsFunc) (out *dynamodb.BatchGetItemOutput, err error) {
 	keys := gi.keys
 	for len(keys) > 0 {
-		var out *dynamodb.BatchGetItemOutput
 		out, err = cli.BatchGetItem(ctx, &dynamodb.BatchGetItemInput{
 			RequestItems: keys,
 		})
 		if err != nil {
-			return errors.WithStack(err)
+			return nil, errors.WithStack(err)
 		}
-		for table, values := range out.Responses {
-			for _, v := range values {
-				if err = fetch(table, v); err != nil {
-					return err
+		if fetch != nil {
+			for table, values := range out.Responses {
+				if err = fetch(table, values); err != nil {
+					return nil, err
 				}
 			}
 		}
 		keys = out.UnprocessedKeys
 	}
-	return nil
+	return out, nil
 }
 
 func Get(keys ...foundations.GetKeyFunc) *GetBuilder {
@@ -119,16 +118,16 @@ func (builder *GetBuilder) get(length int) *getItem {
 	return gi
 }
 
-func (builder *GetBuilder) Run(ctx context.Context, cli GetClient, fetch foundations.FetchItemFunc) (err error) {
+func (builder *GetBuilder) Run(ctx context.Context, cli GetClient, fetch foundations.FetchItemsFunc) (out *dynamodb.BatchGetItemOutput, err error) {
 	if builder.err != nil {
-		return builder.err
+		return nil, builder.err
 	}
 	for _, v := range builder.items {
-		if err = v.run(ctx, cli, fetch); err != nil {
-			return err
+		if out, err = v.run(ctx, cli, fetch); err != nil {
+			return nil, err
 		}
 	}
-	return nil
+	return out, nil
 }
 
 type GetClient interface {

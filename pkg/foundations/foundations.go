@@ -64,9 +64,9 @@ type QueryConditionFunc func() (table, index string, expr expression.Expression,
 
 type ScanFilterFunc func() (table string, expr expression.Expression, err error)
 
-type FetchItemFunc func(tableName string, value map[string]types.AttributeValue) error
+type FetchItemFunc func(tableName string, value Record) error
 
-type FetchItemsFunc func(tableName string, value []map[string]types.AttributeValue) error
+type FetchItemsFunc func(tableName string, value Records) error
 
 func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItemFunc, opt ...options.Option) (*dynamodb.GetItemOutput, error) {
 	table, keys, attrs, err := getKeys()
@@ -328,8 +328,8 @@ func ConsistentUpdateItem(ctx context.Context, keyFunc GetKeyFunc, fieldName str
 }
 
 func FetchItem[T any](rec *T) FetchItemFunc {
-	return func(tableName string, value map[string]types.AttributeValue) error {
-		if err := attributevalue.UnmarshalMap(value, rec); err != nil {
+	return func(tableName string, value Record) error {
+		if err := value.Unmarshal(rec); err != nil {
 			return errors.WithStack(err)
 		}
 		return nil
@@ -337,8 +337,8 @@ func FetchItem[T any](rec *T) FetchItemFunc {
 }
 
 func FetchItems[T any](rec *T) FetchItemsFunc {
-	return func(tableName string, values []map[string]types.AttributeValue) error {
-		if err := attributevalue.UnmarshalListOfMaps(values, rec); err != nil {
+	return func(tableName string, values Records) error {
+		if err := values.Unmarshal(rec); err != nil {
 			return errors.WithStack(err)
 		}
 		return nil
@@ -352,4 +352,16 @@ func UpdateValue(name string, value any) UpdateField {
 		}
 		return builder.Set(expression.Name(name), expression.Value(value))
 	}
+}
+
+type Record map[string]types.AttributeValue
+
+func (r Record) Unmarshal(v any) error {
+	return attributevalue.UnmarshalMap(r, v)
+}
+
+type Records []map[string]types.AttributeValue
+
+func (r Records) Unmarshal(v any) error {
+	return attributevalue.UnmarshalListOfMaps(r, v)
 }

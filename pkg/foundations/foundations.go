@@ -266,6 +266,14 @@ type PutItemPreprocessor interface {
 	BeforePutItem(ctx context.Context) (any, error)
 }
 
+type FetchItemPostprocessor interface {
+	AfterFetchItem(ctx context.Context) error
+}
+
+type FetchItemsPostprocessor interface {
+	AfterFetchItems(ctx context.Context) error
+}
+
 type ExpressionFunc func() (expr expression.Expression, err error)
 
 func PutItem(ctx context.Context, tableName string, rec any, f ...ExpressionFunc) WriteItemFunc {
@@ -327,19 +335,19 @@ func ConsistentUpdateItem(ctx context.Context, keyFunc GetKeyFunc, fieldName str
 	}
 }
 
-func FetchItem[T any](rec *T) FetchItemFunc {
+func FetchItem[T any](ctx context.Context, rec *T) FetchItemFunc {
 	return func(tableName string, value Record) error {
-		if err := value.Unmarshal(rec); err != nil {
-			return errors.WithStack(err)
+		if err := value.Unmarshal(ctx, rec); err != nil {
+			return err
 		}
 		return nil
 	}
 }
 
-func FetchItems[T any](rec *T) FetchItemsFunc {
+func FetchItems[T any](ctx context.Context, rec *T) FetchItemsFunc {
 	return func(tableName string, values Records) error {
-		if err := values.Unmarshal(rec); err != nil {
-			return errors.WithStack(err)
+		if err := values.Unmarshal(ctx, rec); err != nil {
+			return err
 		}
 		return nil
 	}
@@ -356,12 +364,43 @@ func UpdateValue(name string, value any) UpdateField {
 
 type Record map[string]types.AttributeValue
 
-func (r Record) Unmarshal(v any) error {
-	return attributevalue.UnmarshalMap(r, v)
+func (r Record) Unmarshal(ctx context.Context, v any) error {
+	if err := attributevalue.UnmarshalMap(r, v); err != nil {
+		return errors.WithStack(err)
+	}
+	if postprocessor, ok := v.(FetchItemPostprocessor); ok {
+		err := postprocessor.AfterFetchItem(ctx)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	return nil
 }
 
 type Records []map[string]types.AttributeValue
 
-func (r Records) Unmarshal(v any) error {
-	return attributevalue.UnmarshalListOfMaps(r, v)
+func (r Records) Unmarshal(ctx context.Context, v any) error {
+	if err := attributevalue.UnmarshalListOfMaps(r, v); err != nil {
+		return errors.WithStack(err)
+	}
+	if postprocessor, ok := v.(FetchItemsPostprocessor); ok {
+		err := postprocessor.AfterFetchItems(ctx)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	} /*else {
+		items := reflect.ValueOf(v).Elem()
+		for i := 0; i < items.Len(); i++ {
+			item := items.Index(i).Interface()
+			if postprocessor, ok := item.(FetchItemPostprocessor); ok {
+				err := postprocessor.AfterFetchItem(ctx)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			} else {
+				break
+			}
+		}
+	}*/
+	return nil
 }

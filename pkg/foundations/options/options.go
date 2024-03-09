@@ -7,6 +7,44 @@ import (
 
 type Option func(input any) any
 
+type Options []Option
+
+type Builder struct {
+	options []Option
+	err     error
+}
+
+func New(size int, opt ...Option) *Builder {
+	if len(opt) >= size {
+		size = len(opt) + 1
+	}
+	o := make(Options, 0, size)
+	o = append(o, opt...)
+	return &Builder{
+		options: o,
+	}
+}
+
+func (b *Builder) Append(f func() (Option, error)) *Builder {
+	if b.err != nil {
+		return b
+	}
+	opt, err := f()
+	if err != nil {
+		b.err = err
+	} else {
+		b.options = append(b.options, opt)
+	}
+	return b
+}
+
+func (b *Builder) Build() ([]Option, error) {
+	if b.err != nil {
+		return nil, b.err
+	}
+	return b.options, nil
+}
+
 func ReturnConsumedCapacity(capacity types.ReturnConsumedCapacity) Option {
 	return func(input any) any {
 		switch in := input.(type) {

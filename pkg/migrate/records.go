@@ -2,14 +2,15 @@ package migrate
 
 import (
 	"context"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/logging/log"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"strings"
-	"time"
 )
 
 func SaveRecord(ctx context.Context, api MigrationApi, tableName string, record map[string]interface{}) (err error) {

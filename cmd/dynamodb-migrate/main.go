@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/goccha/dynamodb-verse/pkg/foundations"
 	"github.com/goccha/dynamodb-verse/pkg/migrate"
 	"github.com/goccha/envar"
 )
@@ -16,8 +17,7 @@ var (
 )
 
 func main() {
-	var local, ver bool
-	var debug string
+	var local, ver, debug bool
 	var region, endpoint, profile, dirPath string
 	flag.StringVar(&region, "region", "", "AWS Region")
 	flag.StringVar(&endpoint, "endpoint", "", "AWS DynamoDB Endpoint")
@@ -25,11 +25,11 @@ func main() {
 	flag.StringVar(&dirPath, "path", "", "Directory path for configuration files")
 	flag.BoolVar(&local, "local", true, "for dynamodb-local")
 	flag.BoolVar(&ver, "version", false, "show version")
-	flag.StringVar(&debug, "debug", "", "debug mode (true|false)")
+	flag.BoolVar(&debug, "debug", false, "debug mode")
 	flag.Parse()
 
 	if ver {
-		fmt.Printf("%s", Version())
+		fmt.Printf("%s\n", Version())
 		return
 	}
 	ctx := context.Background()
@@ -40,12 +40,20 @@ func main() {
 	if profile == "" {
 		profile = envar.String("AWS_PROFILE")
 	}
-	cli, err := migrate.Setup(ctx, migrate.Config{
-		Local:    local,
-		Region:   region,
-		Endpoint: endpoint,
-		Profile:  profile,
-		Debug:    strings.EqualFold(debug, "true") || debug == "" && envar.Bool("AWS_DEBUG_LOG"),
+	if endpoint == "" {
+		if local {
+			endpoint = "http://localhost:8000"
+		} else {
+			endpoint = envar.String("AWS_DYNAMODB_ENDPOINT")
+		}
+	}
+	cli, err := foundations.Setup(ctx, &foundations.DefaultBuilder{
+		Config: &foundations.Config{
+			Debug:    debug || envar.Bool("AWS_DEBUG_LOG"),
+			Region:   region,
+			Endpoint: endpoint,
+			Profile:  profile,
+		},
 	})
 	if err != nil {
 		panic(err)

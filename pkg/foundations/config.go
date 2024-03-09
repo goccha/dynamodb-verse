@@ -1,4 +1,4 @@
-package migrate
+package foundations
 
 import (
 	"context"
@@ -21,9 +21,13 @@ type Config struct {
 	Debug    bool
 }
 
-func Setup(ctx context.Context, conf Config) (MigrationApi, error) {
+func Setup(ctx context.Context, builder ConfigBuilder) (*dynamodb.Client, error) {
+	conf, err := builder.Build(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var logLevel aws.ClientLogMode
-	if conf.Debug || envar.Bool("AWS_DEBUG_LOG") {
+	if conf.Debug {
 		logLevel = aws.LogSigning | aws.LogRequestWithBody | aws.LogRetries | aws.LogResponseWithBody
 	}
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(conf.Region),
@@ -41,21 +45,14 @@ func Setup(ctx context.Context, conf Config) (MigrationApi, error) {
 		return nil, errors.New("default settings are not defined in the credentials file")
 	}
 	var cli *dynamodb.Client
-	endpoint := conf.Endpoint
-	if conf.Local && endpoint == "" {
-		endpoint = "http://localhost:8000"
-	}
-	if endpoint = envar.Get("AWS_DYNAMODB_ENDPOINT").String(endpoint); endpoint != "" { // dynamodb-local対応
+	if conf.Endpoint != "" { // dynamodb-local対応
 		if conf.Debug {
-			fmt.Printf("endpoint=%s\n", endpoint)
+			fmt.Printf("endpoint=%s\n", conf.Endpoint)
 		}
 		cli = dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
-			o.BaseEndpoint = aws.String(endpoint)
+			o.BaseEndpoint = aws.String(conf.Endpoint)
 		})
 	} else {
-		if conf.Debug {
-			fmt.Printf("endpoint=default\n")
-		}
 		cli = dynamodb.NewFromConfig(cfg)
 	}
 	return cli, nil
@@ -79,4 +76,27 @@ func validate(cfg aws.Config) bool {
 		}
 	}
 	return false
+}
+
+type ConfigBuilder interface {
+	Build(ctx context.Context) (*Config, error)
+}
+
+type DefaultBuilder struct {
+	Config *Config
+}
+
+func (b *DefaultBuilder) Build(ctx context.Context) (*Config, error) {
+	return b.Config, nil
+}
+
+type EnvBuilder struct{}
+
+func (b *EnvBuilder) Build(ctx context.Context) (*Config, error) {
+	return &Config{
+		Debug:    envar.Bool("AWS_DEBUG_LOG"),
+		Region:   envar.Get("AWS_REGION,AWS_DEFAULT_REGION").String("ap-northeast-1"),
+		Endpoint: envar.Get("AWS_DYNAMODB_ENDPOINT").String(""),
+		Profile:  envar.Get("AWS_PROFILE").String(""),
+	}, nil
 }

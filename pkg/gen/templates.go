@@ -57,7 +57,7 @@ func (rec *{{ $DaoName }}) MarshalBinary() ([]byte, error) {
 func (rec *{{ $DaoName }}) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, rec)
 }
-{{ end -}}
+{{ end }}
 
 func (rec *{{ $DaoName }}) TableName() string {
     return "{{ .TableFullName }}"

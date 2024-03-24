@@ -20,6 +20,7 @@ type Param struct {
 	PackageName      string
 	EntityName       string
 	TableName        string
+	TableFullName    string
 	EntitiesName     string
 	Fields           []EntityField
 	Keys             []EntityKey
@@ -27,6 +28,15 @@ type Param struct {
 	EntityPackage    string
 	TablePackage     string
 	SecondaryIndexes []SecondaryIndex
+	Receiver         string
+	BinaryMarshaller bool
+	TimeToLive       *TimeToLive
+}
+
+type TimeToLive struct {
+	Name       string
+	JsonKey    string
+	ColumnName string
 }
 
 const BackQuote = "`"
@@ -156,9 +166,41 @@ func (src SchemasSource) GetSchemas(ctx context.Context) ([]migrate.Schema, erro
 }
 
 type Options struct {
-	PackageName   string
-	EntityPackage string
-	TablePackage  string
+	PackageName      string
+	EntityPackage    string
+	TablePackage     string
+	TableNamePrefix  string
+	BinaryMarshaller bool
+}
+
+type GenerateOption func(o *Options)
+
+func WithPackageName(name string) GenerateOption {
+	return func(o *Options) {
+		o.PackageName = name
+	}
+}
+func WithEntityPackage(name string) GenerateOption {
+	return func(o *Options) {
+		o.EntityPackage = name
+	}
+}
+func WithTablePackage(name string) GenerateOption {
+	return func(o *Options) {
+		o.TablePackage = name
+	}
+}
+
+func WithTableNamePrefix(prefix string) GenerateOption {
+	return func(o *Options) {
+		o.TableNamePrefix = prefix
+	}
+}
+
+func WithBinaryMarshaller() GenerateOption {
+	return func(o *Options) {
+		o.BinaryMarshaller = true
+	}
 }
 
 func packageName(name string) string {
@@ -166,10 +208,14 @@ func packageName(name string) string {
 	return packages[len(packages)-1]
 }
 
-func Generate(ctx context.Context, src SchemaSource, options Options) (Outputs, error) {
+func Generate(ctx context.Context, src SchemaSource, opt ...GenerateOption) (Outputs, error) {
 	schemas, err := src.GetSchemas(ctx)
 	if err != nil {
 		return nil, err
+	}
+	options := &Options{}
+	for _, o := range opt {
+		o(options)
 	}
 	sources := make(Outputs, 0, len(schemas))
 	if options.EntityPackage == "" {
@@ -182,13 +228,16 @@ func Generate(ctx context.Context, src SchemaSource, options Options) (Outputs, 
 	plu := pluralize.NewClient()
 	for _, schema := range schemas {
 		param := Param{
-			PackageName:   options.PackageName,
-			TableName:     schema.Table.TableName,
-			EntityName:    strcase.UpperCamelCase(plu.Singular(schema.Table.TableName)),
-			EntitiesName:  strcase.UpperCamelCase(plu.Plural(schema.Table.TableName)),
-			BackQuote:     BackQuote,
-			EntityPackage: packageName(options.EntityPackage),
-			TablePackage:  packageName(options.TablePackage),
+			PackageName:      options.PackageName,
+			TableName:        schema.Table.TableName,
+			TableFullName:    options.TableNamePrefix + schema.Table.TableName,
+			EntityName:       strcase.UpperCamelCase(plu.Singular(schema.Table.TableName)),
+			EntitiesName:     strcase.UpperCamelCase(plu.Plural(schema.Table.TableName)),
+			BackQuote:        BackQuote,
+			EntityPackage:    packageName(options.EntityPackage),
+			TablePackage:     packageName(options.TablePackage),
+			Receiver:         strings.ToLower(schema.Table.TableName[0:1]),
+			BinaryMarshaller: options.BinaryMarshaller,
 		}
 		sort.Slice(schema.Table.Keys, func(i, j int) bool {
 			return schema.Table.Keys[i].Type < schema.Table.Keys[j].Type
@@ -199,8 +248,8 @@ func Generate(ctx context.Context, src SchemaSource, options Options) (Outputs, 
 			param.Fields = append(param.Fields, EntityField{
 				Name:       strcase.UpperCamelCase(attr.Name),
 				Type:       entityType(attr.Type),
-				JsonKey:    strcase.SnakeCase(attr.Name),
-				ColumnName: strcase.UpperCamelCase(attr.Name),
+				JsonKey:    strcase.LowerCamelCase(attr.Name),
+				ColumnName: strcase.SnakeCase(attr.Name),
 				BackQuote:  BackQuote,
 			})
 		}
@@ -245,6 +294,13 @@ func Generate(ctx context.Context, src SchemaSource, options Options) (Outputs, 
 				})
 			}
 			param.SecondaryIndexes = append(param.SecondaryIndexes, sIndex)
+		}
+		if schema.Table.TimeToLive != nil {
+			param.TimeToLive = &TimeToLive{
+				Name:       strcase.UpperCamelCase(schema.Table.TimeToLive.AttributeName),
+				JsonKey:    strcase.LowerCamelCase(schema.Table.TimeToLive.AttributeName),
+				ColumnName: strcase.SnakeCase(schema.Table.TimeToLive.AttributeName),
+			}
 		}
 
 		output := Output{

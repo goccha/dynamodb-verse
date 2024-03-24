@@ -25,11 +25,11 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
-	if res, err := gen.Generate(ctx, gen.FileSource{Path: args.SrcPath}, gen.Options{
-		PackageName:   args.PackageName,
-		EntityPackage: args.EntityPackage,
-		TablePackage:  args.TablePackage,
-	}); err != nil {
+	res, err := gen.Generate(ctx, gen.FileSource{Path: args.SrcPath},
+		gen.WithPackageName(args.PackageName),
+		gen.WithEntityPackage(args.EntityPackage),
+		gen.WithTablePackage(args.TablePackage))
+	if err != nil {
 		panic(err)
 	} else {
 		if err = res.WriteFile(ctx, args.DestPath); err != nil {

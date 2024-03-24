@@ -4,11 +4,23 @@ const EntityTemplate = `
 {{- if ne .TablePackage .EntityPackage -}}
 package {{ .EntityPackage }}
 {{ end }}
+{{ if .BinaryMarshaller -}}
+import "encoding/json"
+{{ end }}
 type {{ .EntityName }} struct {
     {{- range .Fields }}
-	{{ .Name }} {{ .Type }} {{ .BackQuote }}json:"{{ .JsonKey }}" dynamodbav:"{{ .ColumnName }}"{{ .BackQuote }}
-	{{- end }}
+	{{ .Name }} {{ .Type }} {{ .BackQuote }}json:"{{ .JsonKey }}" dynamodbav:"{{ .ColumnName }}"{{ .BackQuote }}{{ end }}
+	{{ if .TimeToLive }}{{ .TimeToLive.Name }} int64 {{ .BackQuote }}json:"{{ .TimeToLive.JsonKey }}" dynamodbav:"{{ .TimeToLive.ColumnName }}"{{ .BackQuote }}{{ end }} 
 }
+{{- if .BinaryMarshaller }}
+func ({{- .Receiver }} *{{ .EntityName }}) MarshalBinary() ([]byte, error) {
+	return json.Marshal({{ .Receiver }})
+}
+func ({{- .Receiver }} *{{ .EntityName }}) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, {{ .Receiver }})
+}
+{{ end -}}
+
 `
 
 const TableTemplate = `
@@ -17,7 +29,9 @@ package {{ .TablePackage }}
 
 import (
     "context"
-
+{{ if .BinaryMarshaller -}}
+    "encoding/json"
+{{ end }}
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/goccha/dynamodb-verse/pkg/foundations"
 {{- if ne .TablePackage .EntityPackage }}
@@ -36,8 +50,17 @@ type {{ $DaoName }} struct {
     UpdateCnt int {{ .BackQuote }}json:"-" dynamodbav:"update_cnt"{{ .BackQuote }}
 }
 
+{{- if .BinaryMarshaller }}
+func (rec *{{ $DaoName }}) MarshalBinary() ([]byte, error) {
+	return json.Marshal(rec)
+}
+func (rec *{{ $DaoName }}) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, rec)
+}
+{{ end }}
+
 func (rec *{{ $DaoName }}) TableName() string {
-    return "{{ .TableName }}"
+    return "{{ .TableFullName }}"
 }
 
 func (rec *{{ $DaoName }}) GetKey(ctx context.Context) foundations.GetKeyFunc {
@@ -63,7 +86,7 @@ func (rec *{{ $DaoName }}) UpdateItem(ctx context.Context, fields ...foundations
 }
 
 func (rec *{{ $DaoName }}) Get(ctx context.Context) (res *{{ $DaoName }}, err error) {
-	if _, err = foundations.Get(ctx, rec.DB, rec.GetKey(ctx), foundations.FetchItem(rec)); err != nil {
+	if _, err = foundations.Get(ctx, rec.DB, rec.GetKey(ctx), foundations.FetchItem(ctx, rec)); err != nil {
 		return rec, err
 	}
 	return rec, nil

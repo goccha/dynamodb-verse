@@ -19,6 +19,7 @@ type TableSchema struct {
 	LocalSecondaryIndex  SecondaryIndexes         `json:"LocalSecondaryIndexes,omitempty" yaml:"LocalSecondaryIndexes,omitempty"`
 	TableClass           types.TableClass         `json:"TableClass" yaml:"TableClass"`
 	TimeToLive           *TimeToLiveSpecification `json:"TimeToLiveSpecification,omitempty" yaml:"TimeToLiveSpecification,omitempty"`
+	tableNamePrefix      string
 }
 
 func (t TableSchema) billingMode() types.BillingMode {
@@ -33,7 +34,7 @@ func (t TableSchema) billingMode() types.BillingMode {
 }
 
 func (t TableSchema) Exists(ctx context.Context, api MigrationApi) (out *dynamodb.DescribeTableOutput, err error) {
-	if out, err = api.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(t.TableName)}); err != nil {
+	if out, err = api.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(t.tableNamePrefix + t.TableName)}); err != nil {
 		if errors.As(err, &ErrNotFound) {
 			return nil, nil
 		}
@@ -57,7 +58,7 @@ func (t TableSchema) Create(ctx context.Context, api MigrationApi) (out *dynamod
 	input := &dynamodb.CreateTableInput{
 		AttributeDefinitions:   attrs,
 		KeySchema:              keys,
-		TableName:              aws.String(t.TableName),
+		TableName:              aws.String(t.tableNamePrefix + t.TableName),
 		BillingMode:            t.billingMode(),
 		ProvisionedThroughput:  tp,
 		GlobalSecondaryIndexes: g,
@@ -72,7 +73,7 @@ func (t TableSchema) Create(ctx context.Context, api MigrationApi) (out *dynamod
 	}
 	if t.TimeToLive != nil {
 		if _, err = api.UpdateTimeToLive(ctx, &dynamodb.UpdateTimeToLiveInput{
-			TableName:               aws.String(t.TableName),
+			TableName:               aws.String(t.tableNamePrefix + t.TableName),
 			TimeToLiveSpecification: t.TimeToLive.Element(),
 		}); err != nil {
 			return nil, errors.WithStack(err)
@@ -83,7 +84,7 @@ func (t TableSchema) Create(ctx context.Context, api MigrationApi) (out *dynamod
 
 func (t TableSchema) Update(ctx context.Context, api MigrationApi, desc types.TableDescription) (out *dynamodb.UpdateTableOutput, err error) {
 	in := &dynamodb.UpdateTableInput{
-		TableName:                   aws.String(t.TableName),
+		TableName:                   aws.String(t.tableNamePrefix + t.TableName),
 		AttributeDefinitions:        t.Attributes.Definitions(),
 		GlobalSecondaryIndexUpdates: t.GlobalSecondaryIndex.UpdateGlobals(desc),
 		ProvisionedThroughput:       t.Throughput.Update(desc),
@@ -102,7 +103,7 @@ func (t TableSchema) Update(ctx context.Context, api MigrationApi, desc types.Ta
 	}
 	if t.TimeToLive != nil {
 		var ttl *dynamodb.DescribeTimeToLiveOutput
-		if ttl, err = api.DescribeTimeToLive(ctx, &dynamodb.DescribeTimeToLiveInput{TableName: aws.String(t.TableName)}); err != nil {
+		if ttl, err = api.DescribeTimeToLive(ctx, &dynamodb.DescribeTimeToLiveInput{TableName: aws.String(t.tableNamePrefix + t.TableName)}); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
 			update := false
@@ -114,7 +115,7 @@ func (t TableSchema) Update(ctx context.Context, api MigrationApi, desc types.Ta
 			}
 			if update {
 				if _, err = api.UpdateTimeToLive(ctx, &dynamodb.UpdateTimeToLiveInput{
-					TableName:               aws.String(t.TableName),
+					TableName:               aws.String(t.tableNamePrefix + t.TableName),
 					TimeToLiveSpecification: t.TimeToLive.Element(),
 				}); err != nil {
 					return nil, errors.WithStack(err)
@@ -126,7 +127,7 @@ func (t TableSchema) Update(ctx context.Context, api MigrationApi, desc types.Ta
 }
 
 func (t TableSchema) Delete(ctx context.Context, api MigrationApi) (out *dynamodb.DeleteTableOutput, err error) {
-	if out, err = api.DeleteTable(ctx, &dynamodb.DeleteTableInput{TableName: aws.String(t.TableName)}); err != nil {
+	if out, err = api.DeleteTable(ctx, &dynamodb.DeleteTableInput{TableName: aws.String(t.tableNamePrefix + t.TableName)}); err != nil {
 		return nil, errors.WithStack(err)
 	}
 	return

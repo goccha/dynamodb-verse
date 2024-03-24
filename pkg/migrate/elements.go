@@ -34,6 +34,14 @@ func (attr Attribute) Definition() types.AttributeDefinition {
 	}
 }
 
+func (attr Attribute) HashKey() KeySchema {
+	return KeySchema{Name: attr.Name, Type: types.KeyTypeHash}
+}
+
+func (attr Attribute) RangeKey() KeySchema {
+	return KeySchema{Name: attr.Name, Type: types.KeyTypeRange}
+}
+
 type Keys []KeySchema
 
 func (keys Keys) Map() map[string]types.KeyType {

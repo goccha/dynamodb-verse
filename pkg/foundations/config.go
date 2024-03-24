@@ -100,3 +100,31 @@ func (b *EnvBuilder) Build(ctx context.Context) (*Config, error) {
 		Profile:  envar.Get("AWS_PROFILE").String(""),
 	}, nil
 }
+
+type OptionBuilder struct {
+	Local    bool
+	Region   string
+	Endpoint string
+	Profile  string
+	Debug    bool
+}
+
+func (b *OptionBuilder) Build(ctx context.Context) (*Config, error) {
+	c := &Config{
+		Region:   b.Region,
+		Endpoint: b.Endpoint,
+		Profile:  b.Profile,
+	}
+	c.Local = b.Local
+	c.Debug = envar.Get("AWS_DEBUG_LOG").Bool(b.Debug)
+	if c.Endpoint == "" {
+		c.Endpoint = envar.Get("AWS_DYNAMODB_ENDPOINT").String("")
+	}
+	if c.Region == "" {
+		c.Region = envar.Get("AWS_REGION,AWS_DEFAULT_REGION").String("ap-northeast-1")
+	}
+	if c.Profile == "" {
+		c.Profile = envar.Get("AWS_PROFILE").String("")
+	}
+	return c, nil
+}

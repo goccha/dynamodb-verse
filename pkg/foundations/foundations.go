@@ -404,3 +404,15 @@ func (r Records) Unmarshal(ctx context.Context, v any) error {
 	}*/
 	return nil
 }
+
+func Values(values ...any) (right expression.OperandBuilder, other []expression.OperandBuilder) {
+	other = make([]expression.OperandBuilder, 0, len(values))
+	for i, v := range values {
+		if i == 0 {
+			right = expression.Value(v)
+		} else {
+			other = append(other, expression.Value(v))
+		}
+	}
+	return right, other
+}

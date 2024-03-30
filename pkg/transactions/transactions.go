@@ -317,3 +317,82 @@ type Client interface {
 	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 	TransactGetItems(ctx context.Context, params *dynamodb.TransactGetItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactGetItemsOutput, error)
 }
+
+var NotBegan = errors.New("Transaction not began")
+
+type transactionKey struct{}
+
+var transactionKeyInstance = transactionKey{}
+
+type Context struct {
+	db       Client
+	*Builder `json:"-" dynamodbav:"-"`
+}
+
+func (t *Context) DB() Client {
+	return t.db
+}
+
+func Begin(ctx context.Context, db Client, opt ...options.Option) context.Context {
+	return context.WithValue(ctx, transactionKeyInstance, &Context{
+		db:      db,
+		Builder: New(opt...),
+	})
+}
+
+func With(ctx context.Context, f func(t *Builder)) {
+	if t, ok := From(ctx); ok {
+		f(t.Builder)
+	}
+}
+
+func From(ctx context.Context) (*Context, bool) {
+	t, ok := ctx.Value(transactionKeyInstance).(*Context)
+	return t, ok
+}
+
+func Put(ctx context.Context, keys ...foundations.WriteItemFunc) {
+	if t, ok := From(ctx); ok {
+		t.Put(keys...)
+	}
+}
+
+func DelayedPut(ctx context.Context, keys ...foundations.WriteItemFunc) {
+	if t, ok := From(ctx); ok {
+		t.DelayedPut(keys...)
+	}
+}
+
+func Update(ctx context.Context, keys ...foundations.WriteItemFunc) {
+	if t, ok := From(ctx); ok {
+		t.Update(keys...)
+	}
+}
+
+func DelayedUpdate(ctx context.Context, keys ...foundations.WriteItemFunc) {
+	if t, ok := From(ctx); ok {
+		t.DelayedUpdate(keys...)
+	}
+}
+
+func Delete(ctx context.Context, keys ...foundations.WriteItemFunc) {
+	if t, ok := From(ctx); ok {
+		t.Delete(keys...)
+	}
+}
+
+func DelayedDelete(ctx context.Context, keys ...foundations.WriteItemFunc) {
+	if t, ok := From(ctx); ok {
+		t.DelayedDelete(keys...)
+	}
+}
+
+func Run(ctx context.Context, opt ...options.Option) (*dynamodb.TransactWriteItemsOutput, error) {
+	t, ok := From(ctx)
+	if !ok {
+		return nil, NotBegan
+	}
+	builder := t.Builder
+	t.Builder = New(opt...)
+	return builder.Run(ctx, t.db)
+}

@@ -130,6 +130,8 @@ func (p *delayedUpdateItem) apply(opt ...options.Option) (res types.TransactWrit
 	}, nil
 }
 
+type Monitor func(items []types.TransactWriteItem, err error)
+
 func New(opt ...options.Option) *Builder {
 	return &Builder{
 		items: make([]transactionItem, 0, MaxItems),
@@ -138,9 +140,21 @@ func New(opt ...options.Option) *Builder {
 }
 
 type Builder struct {
-	items []transactionItem
-	opt   []options.Option
-	err   error
+	items   []transactionItem
+	opt     []options.Option
+	err     error
+	monitor Monitor
+}
+
+func (builder *Builder) Monitor(monitor Monitor) *Builder {
+	builder.monitor = monitor
+	return builder
+}
+
+func (builder *Builder) monitoring(items []types.TransactWriteItem, err error) {
+	if builder.monitor != nil {
+		builder.monitor(items, err)
+	}
 }
 
 func (builder *Builder) HasError() bool {
@@ -288,14 +302,14 @@ func (builder *Builder) Run(ctx context.Context, cli Client) (out *dynamodb.Tran
 		if end > len(builder.items) {
 			end = len(builder.items)
 		}
-		if out, err = run(ctx, cli, builder.items[i:end], builder.opt); err != nil {
+		if out, err = builder.run(ctx, cli, builder.items[i:end], builder.opt); err != nil {
 			return nil, err
 		}
 	}
 	return
 }
 
-func run(ctx context.Context, cli Client, items []transactionItem, opt []options.Option) (out *dynamodb.TransactWriteItemsOutput, err error) {
+func (builder *Builder) run(ctx context.Context, cli Client, items []transactionItem, opt []options.Option) (out *dynamodb.TransactWriteItemsOutput, err error) {
 	if len(items) > MaxItems {
 		return nil, fmt.Errorf("transaction size is within %d items", MaxItems)
 	}
@@ -308,8 +322,10 @@ func run(ctx context.Context, cli Client, items []transactionItem, opt []options
 		applies = append(applies, item)
 	}
 	if out, err = cli.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: applies}); err != nil {
+		builder.monitoring(applies, err)
 		return nil, errors.WithStack(err)
 	}
+	builder.monitoring(applies, nil)
 	return
 }
 

@@ -37,7 +37,7 @@ type writeItem struct {
 	size  int
 }
 
-func (bi writeItem) Size() int {
+func (bi *writeItem) Size() int {
 	return bi.size
 }
 func (bi *writeItem) Put(table string, req types.WriteRequest) (item *writeItem, newItem bool) {
@@ -61,7 +61,7 @@ func (bi *writeItem) Put(table string, req types.WriteRequest) (item *writeItem,
 	item.size++
 	return item, false
 }
-func (bi writeItem) run(ctx context.Context, cli WriteClient, opt ...options.Option) (err error) {
+func (bi *writeItem) run(ctx context.Context, cli WriteClient, opt ...options.Option) (err error) {
 	body := bi.items
 	for len(body) > 0 {
 		var out *dynamodb.BatchWriteItemOutput
@@ -84,6 +84,8 @@ type WriteClient interface {
 	BatchWriteItem(ctx context.Context, params *dynamodb.BatchWriteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.BatchWriteItemOutput, error)
 }
 
+type Monitor func(items map[string][]types.WriteRequest, err error) error
+
 func New() *Builder {
 	return &Builder{
 		items: []*writeItem{},
@@ -91,8 +93,21 @@ func New() *Builder {
 }
 
 type Builder struct {
-	items []*writeItem
-	err   error
+	items   []*writeItem
+	err     error
+	monitor Monitor
+}
+
+func (builder *Builder) Monitor(monitor Monitor) *Builder {
+	builder.monitor = monitor
+	return builder
+}
+
+func (builder *Builder) monitoring(items map[string][]types.WriteRequest, err error) error {
+	if builder.monitor != nil {
+		return builder.monitor(items, err)
+	}
+	return err
 }
 
 func (builder *Builder) HasError() bool {
@@ -162,6 +177,11 @@ func (builder *Builder) Run(ctx context.Context, cli WriteClient, opt ...options
 	}
 	for _, v := range builder.items {
 		if err = v.run(ctx, cli, opt...); err != nil {
+			if err = builder.monitoring(v.items, err); err != nil {
+				return err
+			}
+		}
+		if err = builder.monitoring(v.items, err); err != nil {
 			return err
 		}
 	}

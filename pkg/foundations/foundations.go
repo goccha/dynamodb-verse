@@ -137,6 +137,26 @@ func Scan(ctx context.Context, cli ScanClient, condition ScanFilterFunc, fetch F
 	return out, nil
 }
 
+func ScanAll(ctx context.Context, cli ScanClient, condition ScanFilterFunc, fetch FetchItemsFunc, opt ...options.Option) (out *dynamodb.ScanOutput, err error) {
+	var key EvaluatedKey
+	for {
+		opts := make([]options.Option, len(opt))
+		copy(opts, opt)
+		if key != nil {
+			opts = append(opts, options.ExclusiveStartKey(key))
+		}
+		out, err = Scan(ctx, cli, condition, fetch, opts...)
+		if err != nil {
+			return nil, err
+		}
+		if out.LastEvaluatedKey == nil {
+			break
+		}
+		key = out.LastEvaluatedKey
+	}
+	return out, nil
+}
+
 func Query(ctx context.Context, cli QueryClient, condition QueryConditionFunc, fetch FetchItemsFunc, opt ...options.Option) (*dynamodb.QueryOutput, error) {
 	table, index, expr, err := condition()
 	if err != nil {
@@ -349,6 +369,17 @@ func FetchItems[T any](ctx context.Context, rec *T) FetchItemsFunc {
 		if err := values.Unmarshal(ctx, rec); err != nil {
 			return err
 		}
+		return nil
+	}
+}
+
+func FetchAll[T any](ctx context.Context, list []T) FetchItemsFunc {
+	return func(tableName string, values Records) error {
+		var rec T
+		if err := values.Unmarshal(ctx, &rec); err != nil {
+			return err
+		}
+		list = append(list, rec)
 		return nil
 	}
 }

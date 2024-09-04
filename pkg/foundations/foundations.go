@@ -50,7 +50,8 @@ func IsNil(record interface{}) bool {
 var ErrNotFound *types.ResourceNotFoundException
 
 func IsNotFound(err error) bool {
-	return errors.As(err, &ErrNotFound)
+	var notFound *types.ResourceNotFoundException
+	return errors.As(err, &notFound)
 }
 
 func NotFound(tableName string) *types.ResourceNotFoundException {

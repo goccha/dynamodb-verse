@@ -17,15 +17,17 @@ var (
 )
 
 func main() {
-	var local, ver, debug bool
-	var region, endpoint, profile, dirPath string
-	flag.StringVar(&region, "region", "", "AWS Region")
-	flag.StringVar(&endpoint, "endpoint", "", "AWS DynamoDB Endpoint")
-	flag.StringVar(&profile, "profile", "", "AWS Profile")
+	var ver bool
+	var dirPath string
+	options := foundations.OptionBuilder{}
+	flag.StringVar(&options.Region, "region", "", "AWS Region")
+	flag.StringVar(&options.Endpoint, "endpoint", "", "AWS DynamoDB Endpoint")
+	flag.StringVar(&options.Profile, "profile", "", "AWS Profile")
+	flag.BoolVar(&options.Local, "local", true, "for dynamodb-local")
+	flag.BoolVar(&options.Debug, "debug", false, "debug mode")
+
 	flag.StringVar(&dirPath, "path", "", "Directory path for configuration files")
-	flag.BoolVar(&local, "local", true, "for dynamodb-local")
 	flag.BoolVar(&ver, "version", false, "show version")
-	flag.BoolVar(&debug, "debug", false, "debug mode")
 	flag.Parse()
 
 	if ver {
@@ -33,28 +35,7 @@ func main() {
 		return
 	}
 	ctx := context.Background()
-	var err error
-	if region == "" {
-		region = envar.Get("AWS_REGION", "AWS_DEFAULT_REGION").String("ap-northeast-1")
-	}
-	if profile == "" {
-		profile = envar.String("AWS_PROFILE")
-	}
-	if endpoint == "" {
-		if local {
-			endpoint = "http://localhost:8000"
-		} else {
-			endpoint = envar.String("AWS_DYNAMODB_ENDPOINT")
-		}
-	}
-	cli, err := foundations.Setup(ctx, &foundations.DefaultBuilder{
-		Config: &foundations.Config{
-			Debug:    debug || envar.Bool("AWS_DEBUG_LOG"),
-			Region:   region,
-			Endpoint: endpoint,
-			Profile:  profile,
-		},
-	})
+	cli, err := foundations.Setup(ctx, options.Build(ctx)...)
 	if err != nil {
 		panic(err)
 	}

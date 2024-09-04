@@ -103,6 +103,9 @@ func (v *FilesMigrate) Run(ctx context.Context, save SaveFunc) (err error) {
 			return err
 		}
 		for _, f := range files {
+			if strings.HasPrefix(f.Name(), "_") {
+				continue
+			}
 			switch filepath.Ext(f.Name()) {
 			case ".json", ".yaml", ".yml":
 				if err = v.migrate(ctx, v.api, path, f, save); err != nil {
@@ -124,7 +127,12 @@ type Migration struct {
 	ID string `json:"id" yaml:"id" dynamodbav:"id"`
 }
 
-var ErrNotFound *types.ResourceNotFoundException
+//var ErrNotFound *types.ResourceNotFoundException
+
+func IsNotFound(err error) bool {
+	var notFound *types.ResourceNotFoundException
+	return errors.As(err, &notFound)
+}
 
 const MigrationTable = "dynamo_migrations"
 
@@ -158,7 +166,7 @@ func migrated(ctx context.Context, api MigrationApi, name string) (bool, error) 
 		TableName: aws.String(MigrationTable),
 	})
 	if err != nil {
-		if !errors.As(err, &ErrNotFound) {
+		if !IsNotFound(err) {
 			return false, err
 		}
 	}
@@ -185,7 +193,7 @@ func (v *FilesMigrate) read(path string, file os.DirEntry) (schemas []Schema, er
 
 func (v *FilesMigrate) migrate(ctx context.Context, api MigrationApi, path string, file os.DirEntry, save SaveFunc) error {
 	if _, err := api.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(MigrationTable)}); err != nil {
-		if errors.As(err, &ErrNotFound) { // テーブルが存在しない場合
+		if IsNotFound(err) { // テーブルが存在しない場合
 			if err = createMigrationTable(ctx, api); err != nil {
 				return err
 			}
@@ -200,7 +208,7 @@ func (v *FilesMigrate) migrate(ctx context.Context, api MigrationApi, path strin
 		TableName: aws.String(MigrationTable),
 	})
 	if err != nil {
-		if !errors.As(err, &ErrNotFound) {
+		if !IsNotFound(err) {
 			return err
 		}
 	}

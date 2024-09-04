@@ -35,7 +35,7 @@ func (t TableSchema) billingMode() types.BillingMode {
 
 func (t TableSchema) Exists(ctx context.Context, api MigrationApi) (out *dynamodb.DescribeTableOutput, err error) {
 	if out, err = api.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(t.tableNamePrefix + t.TableName)}); err != nil {
-		if errors.As(err, &ErrNotFound) {
+		if IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, errors.WithStack(err) // テーブルが存在しない以外のエラー

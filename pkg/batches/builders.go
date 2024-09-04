@@ -2,6 +2,8 @@ package batches
 
 import (
 	"context"
+	"github.com/cloudflare/backoff"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -33,8 +35,9 @@ func DeleteItems(items ...foundations.WriteItemFunc) []WriteItemFunc {
 }
 
 type writeItem struct {
-	items map[string][]types.WriteRequest
-	size  int
+	items  map[string][]types.WriteRequest
+	size   int
+	option *batchOption
 }
 
 func (bi *writeItem) Size() int {
@@ -62,8 +65,10 @@ func (bi *writeItem) Put(table string, req types.WriteRequest) (item *writeItem,
 	return item, false
 }
 func (bi *writeItem) run(ctx context.Context, cli WriteClient, opt ...options.Option) (err error) {
+	b := backoff.New(bi.option.maxInterval, bi.option.interval)
+	i := 0
 	body := bi.items
-	for len(body) > 0 {
+	for ; len(body) > 0 && i < bi.option.maxRetry; i++ {
 		var out *dynamodb.BatchWriteItemOutput
 		input := &dynamodb.BatchWriteItemInput{
 			RequestItems: body,
@@ -76,6 +81,13 @@ func (bi *writeItem) run(ctx context.Context, cli WriteClient, opt ...options.Op
 			return errors.WithStack(err)
 		}
 		body = out.UnprocessedItems // 未処理のアイテム
+		if len(body) > 0 {
+			<-time.After(b.Duration())
+		}
+	}
+	b.Reset()
+	if i >= bi.option.maxRetry {
+		return errors.WithStack(errors.New("max retry exceeded"))
 	}
 	return nil
 }
@@ -86,16 +98,22 @@ type WriteClient interface {
 
 type Monitor func(items map[string][]types.WriteRequest, err error) error
 
-func New() *Builder {
-	return &Builder{
-		items: []*writeItem{},
+func New(opt ...Option) *Builder {
+	b := &Builder{
+		items:  []*writeItem{},
+		option: defaultBatchOption(),
 	}
+	for _, o := range opt {
+		o(&b.option)
+	}
+	return b
 }
 
 type Builder struct {
 	items   []*writeItem
 	err     error
 	monitor Monitor
+	option  batchOption
 }
 
 func (builder *Builder) Monitor(monitor Monitor) *Builder {
@@ -162,7 +180,8 @@ func (builder *Builder) get(length int) *writeItem {
 	if index < 0 {
 		builder.items = make([]*writeItem, 0, length)
 		bi = &writeItem{
-			items: make(map[string][]types.WriteRequest),
+			items:  make(map[string][]types.WriteRequest),
+			option: &builder.option,
 		}
 		builder.items = append(builder.items, bi)
 	} else {

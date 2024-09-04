@@ -14,8 +14,26 @@ import (
 )
 
 const (
-	MaxItems = 25
+	MaxItems = 100
 )
+
+func FailSafe() options.Option {
+	return func(input any) any {
+		if v, ok := input.(*Builder); ok {
+			v.failSafe = true
+		}
+		return input
+	}
+}
+
+func Limit(limit int) options.Option {
+	return func(input any) any {
+		if v, ok := input.(*Builder); ok {
+			v.limit = limit
+		}
+		return input
+	}
+}
 
 type Transaction interface {
 	PutItem(ctx context.Context, expiredAt ...time.Time) foundations.WriteItemFunc
@@ -133,17 +151,24 @@ func (p *delayedUpdateItem) apply(opt ...options.Option) (res types.TransactWrit
 type Monitor func(items []types.TransactWriteItem, err error)
 
 func New(opt ...options.Option) *Builder {
-	return &Builder{
+	b := &Builder{
 		items: make([]transactionItem, 0, MaxItems),
 		opt:   opt,
+		limit: MaxItems,
 	}
+	for _, o := range opt {
+		o(b)
+	}
+	return b
 }
 
 type Builder struct {
-	items   []transactionItem
-	opt     []options.Option
-	err     error
-	monitor Monitor
+	items    []transactionItem
+	opt      []options.Option
+	err      error
+	monitor  Monitor
+	failSafe bool
+	limit    int
 }
 
 func (builder *Builder) Monitor(monitor Monitor) *Builder {
@@ -167,7 +192,7 @@ func (builder *Builder) Put(keys ...foundations.WriteItemFunc) *Builder {
 		return builder
 	}
 	if builder.items == nil {
-		builder.items = make([]transactionItem, 0, MaxItems)
+		builder.items = make([]transactionItem, 0, builder.limit)
 	}
 	for _, k := range keys {
 		if table, item, expr, err := k(); err != nil {
@@ -195,7 +220,7 @@ func (builder *Builder) DelayedPut(keys ...foundations.WriteItemFunc) *Builder {
 		return builder
 	}
 	if builder.items == nil {
-		builder.items = make([]transactionItem, 0, MaxItems)
+		builder.items = make([]transactionItem, 0, builder.limit)
 	}
 	for _, k := range keys {
 		builder.items = append(builder.items, &delayedPutItem{key: k})
@@ -209,7 +234,7 @@ func (builder *Builder) Delete(keys ...foundations.WriteItemFunc) *Builder {
 		return builder
 	}
 	if builder.items == nil {
-		builder.items = make([]transactionItem, 0, MaxItems)
+		builder.items = make([]transactionItem, 0, builder.limit)
 	}
 	for _, k := range keys {
 		if table, item, expr, err := k(); err != nil {
@@ -238,7 +263,7 @@ func (builder *Builder) DelayedDelete(keys ...foundations.WriteItemFunc) *Builde
 		return builder
 	}
 	if builder.items == nil {
-		builder.items = make([]transactionItem, 0, MaxItems)
+		builder.items = make([]transactionItem, 0, builder.limit)
 	}
 	for _, k := range keys {
 		builder.items = append(builder.items, &delayedDeleteItem{key: k})
@@ -252,7 +277,7 @@ func (builder *Builder) Update(keys ...foundations.WriteItemFunc) *Builder {
 		return builder
 	}
 	if builder.items == nil {
-		builder.items = make([]transactionItem, 0, MaxItems)
+		builder.items = make([]transactionItem, 0, builder.limit)
 	}
 	for _, k := range keys {
 		if table, item, expr, err := k(); err != nil {
@@ -281,7 +306,7 @@ func (builder *Builder) DelayedUpdate(keys ...foundations.WriteItemFunc) *Builde
 		return builder
 	}
 	if builder.items == nil {
-		builder.items = make([]transactionItem, 0, MaxItems)
+		builder.items = make([]transactionItem, 0, builder.limit)
 	}
 	for _, k := range keys {
 		builder.items = append(builder.items, &delayedUpdateItem{key: k})
@@ -297,8 +322,13 @@ func (builder *Builder) Run(ctx context.Context, cli Client) (out *dynamodb.Tran
 		err = builder.err
 		return
 	}
-	for i := 0; i < len(builder.items); i += MaxItems {
-		end := i + MaxItems
+	if builder.failSafe {
+		if len(builder.items) > builder.limit {
+			return nil, errors.New("too many items")
+		}
+	}
+	for i := 0; i < len(builder.items); i += builder.limit {
+		end := i + builder.limit
 		if end > len(builder.items) {
 			end = len(builder.items)
 		}
@@ -310,8 +340,8 @@ func (builder *Builder) Run(ctx context.Context, cli Client) (out *dynamodb.Tran
 }
 
 func (builder *Builder) run(ctx context.Context, cli Client, items []transactionItem, opt []options.Option) (out *dynamodb.TransactWriteItemsOutput, err error) {
-	if len(items) > MaxItems {
-		return nil, fmt.Errorf("transaction size is within %d items", MaxItems)
+	if len(items) > builder.limit {
+		return nil, fmt.Errorf("transaction size is within %d items", builder.limit)
 	}
 	applies := make([]types.TransactWriteItem, 0, len(items))
 	for _, v := range items {

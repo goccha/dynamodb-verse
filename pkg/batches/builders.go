@@ -2,8 +2,9 @@ package batches
 
 import (
 	"context"
-	"github.com/cloudflare/backoff"
 	"time"
+
+	"github.com/cloudflare/backoff"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -43,7 +44,7 @@ type writeItem struct {
 func (bi *writeItem) Size() int {
 	return bi.size
 }
-func (bi *writeItem) Put(table string, req types.WriteRequest) (item *writeItem, newItem bool) {
+func (bi *writeItem) add(table string, req types.WriteRequest) (item *writeItem, newItem bool) {
 	var items []types.WriteRequest
 	item = bi
 	if v, ok := item.items[table]; ok {
@@ -51,10 +52,11 @@ func (bi *writeItem) Put(table string, req types.WriteRequest) (item *writeItem,
 			item.items[table] = append(v, req)
 		} else {
 			item = &writeItem{
-				items: map[string][]types.WriteRequest{},
-				size:  0,
+				items:  map[string][]types.WriteRequest{},
+				size:   0,
+				option: bi.option,
 			}
-			item.Put(table, req)
+			item.add(table, req)
 			return item, true
 		}
 	} else {
@@ -141,7 +143,7 @@ func (builder *Builder) Put(items ...WriteItemFunc) *Builder {
 			builder.err = err
 			return builder
 		} else {
-			if it, newItem := builder.get(len(items)).Put(table, types.WriteRequest{
+			if it, newItem := builder.get(len(items)).add(table, types.WriteRequest{
 				PutRequest: &types.PutRequest{
 					Item: item,
 				},
@@ -162,7 +164,7 @@ func (builder *Builder) Delete(items ...WriteItemFunc) *Builder {
 			builder.err = err
 			return builder
 		} else {
-			if it, newItem := builder.get(len(items)).Put(table, types.WriteRequest{
+			if it, newItem := builder.get(len(items)).add(table, types.WriteRequest{
 				DeleteRequest: &types.DeleteRequest{
 					Key: item,
 				},

@@ -60,7 +60,7 @@ func (indexes SecondaryIndexes) LocalIndexes() []types.LocalSecondaryIndex {
 
 func (indexes SecondaryIndexes) UpdateGlobals(desc types.TableDescription) []types.GlobalSecondaryIndexUpdate {
 	updates := make([]types.GlobalSecondaryIndexUpdate, 0, 2)
-	if desc.GlobalSecondaryIndexes != nil && len(desc.GlobalSecondaryIndexes) > 0 { // 既存のGlobalSecondaryIndexが存在する場合
+	if len(desc.GlobalSecondaryIndexes) > 0 { // 既存のGlobalSecondaryIndexが存在する場合
 		if len(indexes) > 0 { // 更新
 			org := make(map[string]types.GlobalSecondaryIndexDescription)
 			for _, v := range desc.GlobalSecondaryIndexes {

@@ -35,7 +35,7 @@ func (t TableSchema) billingMode() types.BillingMode {
 
 func (t TableSchema) Exists(ctx context.Context, api MigrationApi) (out *dynamodb.DescribeTableOutput, err error) {
 	if out, err = api.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(t.tableNamePrefix + t.TableName)}); err != nil {
-		if errors.As(err, &ErrNotFound) {
+		if IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, errors.WithStack(err) // テーブルが存在しない以外のエラー
@@ -48,11 +48,11 @@ func (t TableSchema) Create(ctx context.Context, api MigrationApi) (out *dynamod
 	keys := t.Keys.Elements()
 	tp := t.Throughput.Element()
 	var g []types.GlobalSecondaryIndex
-	if t.GlobalSecondaryIndex != nil && len(t.GlobalSecondaryIndex) > 0 {
+	if len(t.GlobalSecondaryIndex) > 0 {
 		g = t.GlobalSecondaryIndex.GlobalIndexes()
 	}
 	var l []types.LocalSecondaryIndex
-	if t.LocalSecondaryIndex != nil && len(t.LocalSecondaryIndex) > 0 {
+	if len(t.LocalSecondaryIndex) > 0 {
 		l = t.LocalSecondaryIndex.LocalIndexes()
 	}
 	input := &dynamodb.CreateTableInput{

@@ -50,7 +50,8 @@ func IsNil(record interface{}) bool {
 var ErrNotFound *types.ResourceNotFoundException
 
 func IsNotFound(err error) bool {
-	return errors.As(err, &ErrNotFound)
+	var notFound *types.ResourceNotFoundException
+	return errors.As(err, &notFound)
 }
 
 func NotFound(tableName string) *types.ResourceNotFoundException {
@@ -385,11 +386,42 @@ func FetchAll[T any](ctx context.Context, list []T) FetchItemsFunc {
 }
 
 func UpdateValue(name string, value any) UpdateField {
+	return SetValue(name, value)
+}
+
+func SetValue(name string, value any) UpdateField {
 	return func(ctx context.Context, builder *expression.UpdateBuilder) expression.UpdateBuilder {
 		if builder == nil {
 			return expression.Set(expression.Name(name), expression.Value(value))
 		}
 		return builder.Set(expression.Name(name), expression.Value(value))
+	}
+}
+
+func RemoveValue(name string) UpdateField {
+	return func(ctx context.Context, builder *expression.UpdateBuilder) expression.UpdateBuilder {
+		if builder == nil {
+			return expression.Remove(expression.Name(name))
+		}
+		return builder.Remove(expression.Name(name))
+	}
+}
+
+func AddValue(name string, value any) UpdateField {
+	return func(ctx context.Context, builder *expression.UpdateBuilder) expression.UpdateBuilder {
+		if builder == nil {
+			return expression.Add(expression.Name(name), expression.Value(value))
+		}
+		return builder.Add(expression.Name(name), expression.Value(value))
+	}
+}
+
+func DeleteValue(name string, value any) UpdateField {
+	return func(ctx context.Context, builder *expression.UpdateBuilder) expression.UpdateBuilder {
+		if builder == nil {
+			return expression.Delete(expression.Name(name), expression.Value(value))
+		}
+		return builder.Delete(expression.Name(name), expression.Value(value))
 	}
 }
 

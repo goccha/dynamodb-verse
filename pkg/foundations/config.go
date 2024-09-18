@@ -11,32 +11,88 @@ import (
 	"github.com/aws/smithy-go/logging"
 	"github.com/goccha/envar"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 )
 
 type Config struct {
-	Local    bool
-	Region   string
-	Endpoint string
-	Profile  string
-	Debug    bool
+	Local          bool
+	Region         string
+	Endpoint       string
+	Profile        string
+	Debug          bool
+	EnabledTracing bool
+	Cfg            *aws.Config
 }
 
-func Setup(ctx context.Context, builder ConfigBuilder) (*dynamodb.Client, error) {
-	conf, err := builder.Build(ctx)
-	if err != nil {
-		return nil, err
+func (c *Config) apply(option ...ConfigOption) *Config {
+	for _, o := range option {
+		o(c)
 	}
+	return c
+}
+
+type ConfigOption func(*Config)
+
+func Local() ConfigOption {
+	return func(c *Config) {
+		c.Local = true
+	}
+}
+
+func Region(region string) ConfigOption {
+	return func(c *Config) {
+		c.Region = region
+	}
+}
+
+func Endpoint(endpoint string) ConfigOption {
+	return func(c *Config) {
+		c.Endpoint = endpoint
+	}
+}
+
+func Profile(profile string) ConfigOption {
+	return func(c *Config) {
+		c.Profile = profile
+	}
+}
+
+func Debug() ConfigOption {
+	return func(c *Config) {
+		c.Debug = true
+	}
+}
+
+func EnabledTracing() ConfigOption {
+	return func(c *Config) {
+		c.EnabledTracing = true
+	}
+}
+
+func AwsConfig(cfg *aws.Config) ConfigOption {
+	return func(c *Config) {
+		c.Cfg = cfg
+	}
+}
+
+func Setup(ctx context.Context, option ...ConfigOption) (cli *dynamodb.Client, err error) {
+	conf := new(Config).apply(option...)
 	var logLevel aws.ClientLogMode
-	if conf.Debug {
-		logLevel = aws.LogSigning | aws.LogRequestWithBody | aws.LogRetries | aws.LogResponseWithBody
-	}
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(conf.Region),
-		config.WithSharedConfigProfile(conf.Profile),
-		config.WithClientLogMode(logLevel),
-		config.WithLogger(logging.NewStandardLogger(os.Stdout)), config.WithLogConfigurationWarnings(true),
-	)
-	if err != nil {
-		return nil, err
+	var cfg aws.Config
+	if conf.Cfg != nil {
+		cfg = *conf.Cfg
+	} else {
+		if conf.Debug {
+			logLevel = aws.LogSigning | aws.LogRequestWithBody | aws.LogRetries | aws.LogResponseWithBody
+		}
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(conf.Region),
+			config.WithSharedConfigProfile(conf.Profile),
+			config.WithClientLogMode(logLevel),
+			config.WithLogger(logging.NewStandardLogger(os.Stdout)), config.WithLogConfigurationWarnings(true),
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if !validate(cfg) {
 		if conf.Profile != "" {
@@ -44,7 +100,13 @@ func Setup(ctx context.Context, builder ConfigBuilder) (*dynamodb.Client, error)
 		}
 		return nil, errors.New("default settings are not defined in the credentials file")
 	}
-	var cli *dynamodb.Client
+	if conf.EnabledTracing {
+		// instrument all aws clients
+		otelaws.AppendMiddlewares(&cfg.APIOptions)
+	}
+	if conf.Local && conf.Endpoint != "" {
+		conf.Endpoint = "http://localhost:8000"
+	}
 	if conf.Endpoint != "" { // dynamodb-local対応
 		if conf.Debug {
 			fmt.Printf("endpoint=%s\n", conf.Endpoint)
@@ -79,52 +141,61 @@ func validate(cfg aws.Config) bool {
 }
 
 type ConfigBuilder interface {
-	Build(ctx context.Context) (*Config, error)
-}
-
-type DefaultBuilder struct {
-	Config *Config
-}
-
-func (b *DefaultBuilder) Build(ctx context.Context) (*Config, error) {
-	return b.Config, nil
+	Build(ctx context.Context) []ConfigOption
 }
 
 type EnvBuilder struct{}
 
-func (b *EnvBuilder) Build(ctx context.Context) (*Config, error) {
-	return &Config{
-		Debug:    envar.Bool("AWS_DEBUG_LOG"),
-		Region:   envar.Get("AWS_REGION,AWS_DEFAULT_REGION").String("ap-northeast-1"),
-		Endpoint: envar.Get("AWS_DYNAMODB_ENDPOINT").String(""),
-		Profile:  envar.Get("AWS_PROFILE").String(""),
-	}, nil
+func (b *EnvBuilder) Build(ctx context.Context) (options []ConfigOption) {
+	options = make([]ConfigOption, 0, 7)
+	if envar.Bool("AWS_DEBUG_LOG") {
+		options = append(options, Debug())
+	}
+	options = append(options, Region(envar.Get("AWS_REGION,AWS_DEFAULT_REGION").String("ap-northeast-1")))
+	if v := envar.String("AWS_DYNAMODB_ENDPOINT"); v != "" {
+		options = append(options, Endpoint(v))
+	}
+	if v := envar.String("AWS_PROFILE"); v != "" {
+		options = append(options, Profile(v))
+	}
+	if envar.Bool("AWS_ENABLE_TRACING") {
+		options = append(options, EnabledTracing())
+	}
+	return options
 }
 
 type OptionBuilder struct {
-	Local    bool
-	Region   string
-	Endpoint string
-	Profile  string
-	Debug    bool
+	Local          bool
+	Region         string
+	Endpoint       string
+	Profile        string
+	Debug          bool
+	EnabledTracing bool
+	Cfg            *aws.Config
 }
 
-func (b *OptionBuilder) Build(ctx context.Context) (*Config, error) {
-	c := &Config{
-		Region:   b.Region,
-		Endpoint: b.Endpoint,
-		Profile:  b.Profile,
+func (b *OptionBuilder) Build(ctx context.Context) (options []ConfigOption) {
+	options = make([]ConfigOption, 0, 7)
+	if b.Local {
+		options = append(options, Local())
 	}
-	c.Local = b.Local
-	c.Debug = envar.Get("AWS_DEBUG_LOG").Bool(b.Debug)
-	if c.Endpoint == "" {
-		c.Endpoint = envar.Get("AWS_DYNAMODB_ENDPOINT").String("")
+	if b.Region != "" {
+		options = append(options, Region(b.Region))
 	}
-	if c.Region == "" {
-		c.Region = envar.Get("AWS_REGION,AWS_DEFAULT_REGION").String("ap-northeast-1")
+	if b.Endpoint != "" {
+		options = append(options, Endpoint(b.Endpoint))
 	}
-	if c.Profile == "" {
-		c.Profile = envar.Get("AWS_PROFILE").String("")
+	if b.Profile != "" {
+		options = append(options, Profile(b.Profile))
 	}
-	return c, nil
+	if b.Debug {
+		options = append(options, Debug())
+	}
+	if b.EnabledTracing {
+		options = append(options, EnabledTracing())
+	}
+	if b.Cfg != nil {
+		options = append(options, AwsConfig(b.Cfg))
+	}
+	return options
 }

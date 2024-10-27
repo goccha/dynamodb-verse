@@ -104,7 +104,7 @@ func Setup(ctx context.Context, option ...ConfigOption) (cli *dynamodb.Client, e
 		// instrument all aws clients
 		otelaws.AppendMiddlewares(&cfg.APIOptions)
 	}
-	if conf.Local && conf.Endpoint != "" {
+	if conf.Local { // local mode
 		conf.Endpoint = "http://localhost:8000"
 	}
 	if conf.Endpoint != "" { // dynamodb-local対応

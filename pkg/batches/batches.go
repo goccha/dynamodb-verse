@@ -82,6 +82,8 @@ func batchWrite[T any](ctx context.Context, cli WriteClient, tableName string, e
 			if len(items) > 0 {
 				<-time.After(b.Duration())
 			}
+		} else {
+			break
 		}
 	}
 	b.Reset()
@@ -147,6 +149,8 @@ func batchDelete[T any](ctx context.Context, cli WriteClient, tableName string, 
 			if len(items) > 0 {
 				<-time.After(b.Duration())
 			}
+		} else {
+			break
 		}
 	}
 	b.Reset()

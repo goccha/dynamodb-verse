@@ -108,7 +108,10 @@ func AttributeUpdates(updates map[string]types.AttributeValueUpdate) Option {
 // Limit dynamodb.QueryInput.Limit
 func Limit(limit int32) Option {
 	return func(input any) any {
-		if in, ok := input.(*dynamodb.QueryInput); ok {
+		switch in := input.(type) {
+		case *dynamodb.QueryInput:
+			in.Limit = &limit
+		case *dynamodb.ScanInput:
 			in.Limit = &limit
 		}
 		return input

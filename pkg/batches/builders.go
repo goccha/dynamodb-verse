@@ -198,9 +198,10 @@ func (builder *Builder) Run(ctx context.Context, cli WriteClient, opt ...options
 	}
 	for _, v := range builder.items {
 		if err = v.run(ctx, cli, opt...); err != nil {
-			if err = builder.monitoring(v.items, err); err != nil {
-				return err
+			if e := builder.monitoring(v.items, err); e != nil {
+				return e
 			}
+			return err
 		}
 		if err = builder.monitoring(v.items, err); err != nil {
 			return err

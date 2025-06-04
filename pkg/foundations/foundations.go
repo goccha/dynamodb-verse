@@ -646,7 +646,7 @@ func NotExistsFilter[T any](filter expression.ConditionBuilder, name string, val
 	return filter
 }
 
-func InFilter[T any](filter expression.ConditionBuilder, name string, values ...any) expression.ConditionBuilder {
+func InFilter[T any](filter expression.ConditionBuilder, name string, values ...T) expression.ConditionBuilder {
 	if filter.IsSet() {
 		filter = filter.And(expression.Name(name).In(expression.Value(values)))
 	} else {

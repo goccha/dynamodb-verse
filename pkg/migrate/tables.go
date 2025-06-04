@@ -88,9 +88,6 @@ func (t TableSchema) Update(ctx context.Context, api MigrationApi, desc types.Ta
 		AttributeDefinitions:        t.Attributes.Definitions(),
 		GlobalSecondaryIndexUpdates: t.GlobalSecondaryIndex.UpdateGlobals(desc),
 		ProvisionedThroughput:       t.Throughput.Update(desc),
-		ReplicaUpdates:              nil, // TODO
-		SSESpecification:            nil, // TODO
-		StreamSpecification:         nil, // TODO
 	}
 	if t.BillingMode != desc.BillingModeSummary.BillingMode {
 		in.BillingMode = t.BillingMode

@@ -64,12 +64,28 @@ func (indexes SecondaryIndexes) UpdateGlobals(desc types.TableDescription) []typ
 		if len(indexes) > 0 { // 更新
 			org := make(map[string]types.GlobalSecondaryIndexDescription)
 			for _, v := range desc.GlobalSecondaryIndexes {
-				org[*v.IndexName] = v
+				org[*v.IndexName] = v // 削除対象判定用に既存のGlobalSecondaryIndexをマップに格納
 			}
 			for _, newIndex := range indexes {
+				if _, ok := org[newIndex.Name]; !ok { // 既存にないインデックスを追加
+					var throughput *types.ProvisionedThroughput
+					if newIndex.Throughput != nil {
+						throughput = newIndex.Throughput.Element()
+					}
+					updates = append(updates, types.GlobalSecondaryIndexUpdate{
+						Create: &types.CreateGlobalSecondaryIndexAction{
+							IndexName:             aws.String(newIndex.Name),
+							KeySchema:             newIndex.Keys.Elements(),
+							Projection:            newIndex.Projection.Element(),
+							ProvisionedThroughput: throughput,
+						},
+					})
+					continue
+				}
 				var updateProvision *types.ProvisionedThroughput
 				for _, orgIndex := range desc.GlobalSecondaryIndexes {
 					if *orgIndex.IndexName == newIndex.Name {
+						delete(org, newIndex.Name) // 更新対象インデックスは削除対象としない
 						newReadCapacity, newWriteCapacity := int64(0), int64(0)
 						if newIndex.Throughput != nil {
 							newReadCapacity = newIndex.Throughput.Read
@@ -85,7 +101,6 @@ func (indexes SecondaryIndexes) UpdateGlobals(desc types.TableDescription) []typ
 					}
 				}
 				if updateProvision != nil { // 更新
-					delete(org, newIndex.Name)
 					updates = append(updates, types.GlobalSecondaryIndexUpdate{
 						Update: &types.UpdateGlobalSecondaryIndexAction{
 							IndexName:             aws.String(newIndex.Name),
@@ -93,25 +108,12 @@ func (indexes SecondaryIndexes) UpdateGlobals(desc types.TableDescription) []typ
 						},
 					})
 					updateProvision = nil
-				} else { // 追加
-					var throughput *types.ProvisionedThroughput
-					if newIndex.Throughput != nil {
-						throughput = newIndex.Throughput.Element()
-					}
-					updates = append(updates, types.GlobalSecondaryIndexUpdate{
-						Create: &types.CreateGlobalSecondaryIndexAction{
-							IndexName:             aws.String(newIndex.Name),
-							KeySchema:             newIndex.Keys.Elements(),
-							Projection:            newIndex.Projection.Element(),
-							ProvisionedThroughput: throughput,
-						},
-					})
 				}
-				for k := range org { // 削除
-					updates = append(updates, types.GlobalSecondaryIndexUpdate{
-						Delete: &types.DeleteGlobalSecondaryIndexAction{IndexName: aws.String(k)},
-					})
-				}
+			}
+			for k := range org { // 削除
+				updates = append(updates, types.GlobalSecondaryIndexUpdate{
+					Delete: &types.DeleteGlobalSecondaryIndexAction{IndexName: aws.String(k)},
+				})
 			}
 		} else { // GlobalIndex全削除する
 			for _, v := range desc.GlobalSecondaryIndexes {

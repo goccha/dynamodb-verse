@@ -67,6 +67,18 @@ func ReturnConsumedCapacity(capacity types.ReturnConsumedCapacity) Option {
 	}
 }
 
+func ReturnConsumedCapacityIndexes() Option {
+	return ReturnConsumedCapacity(types.ReturnConsumedCapacityIndexes)
+}
+
+func ReturnConsumedCapacityTotal() Option {
+	return ReturnConsumedCapacity(types.ReturnConsumedCapacityTotal)
+}
+
+func ReturnConsumedCapacityNone() Option {
+	return ReturnConsumedCapacity(types.ReturnConsumedCapacityNone)
+}
+
 func ReturnItemCollectionMetrics(metrics types.ReturnItemCollectionMetrics) Option {
 	return func(input any) any {
 		switch in := input.(type) {
@@ -81,6 +93,14 @@ func ReturnItemCollectionMetrics(metrics types.ReturnItemCollectionMetrics) Opti
 	}
 }
 
+func ReturnItemCollectionMetricsSize() Option {
+	return ReturnItemCollectionMetrics(types.ReturnItemCollectionMetricsSize)
+}
+
+func ReturnItemCollectionMetricsNone() Option {
+	return ReturnItemCollectionMetrics(types.ReturnItemCollectionMetricsNone)
+}
+
 func ReturnValues(value types.ReturnValue) Option {
 	return func(input any) any {
 		switch in := input.(type) {
@@ -93,6 +113,26 @@ func ReturnValues(value types.ReturnValue) Option {
 		}
 		return input
 	}
+}
+
+func ReturnValueNone() Option {
+	return ReturnValues(types.ReturnValueNone)
+}
+
+func ReturnValueAllOld() Option {
+	return ReturnValues(types.ReturnValueAllOld)
+}
+
+func ReturnValueUpdatedOld() Option {
+	return ReturnValues(types.ReturnValueUpdatedOld)
+}
+
+func ReturnValueAllNew() Option {
+	return ReturnValues(types.ReturnValueAllNew)
+}
+
+func ReturnValueUpdatedNew() Option {
+	return ReturnValues(types.ReturnValueUpdatedNew)
 }
 
 // AttributeUpdates dynamodb.UpdateItemInput.AttributeUpdates
@@ -144,6 +184,14 @@ func ReturnValuesOnConditionCheckFailure(value types.ReturnValuesOnConditionChec
 	}
 }
 
+func ReturnValuesOnConditionCheckFailureAllOld() Option {
+	return ReturnValuesOnConditionCheckFailure(types.ReturnValuesOnConditionCheckFailureAllOld)
+}
+
+func ReturnValuesOnConditionCheckFailureNone() Option {
+	return ReturnValuesOnConditionCheckFailure(types.ReturnValuesOnConditionCheckFailureNone)
+}
+
 func ConsistentRead(consistentRead *bool) Option {
 	return func(input any) any {
 		switch in := input.(type) {
@@ -178,6 +226,22 @@ func Select(selectType types.Select) Option {
 		}
 		return input
 	}
+}
+
+func SelectAllAttributes() Option {
+	return Select(types.SelectAllAttributes)
+}
+
+func SelectAllProjectedAttributes() Option {
+	return Select(types.SelectAllProjectedAttributes)
+}
+
+func SelectSpecificAttributes() Option {
+	return Select(types.SelectSpecificAttributes)
+}
+
+func SelectCount() Option {
+	return Select(types.SelectCount)
 }
 
 func Segment(segment *int32) Option {

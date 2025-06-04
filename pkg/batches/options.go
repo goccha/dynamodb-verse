@@ -13,8 +13,8 @@ type batchOption struct {
 func defaultBatchOption() batchOption {
 	return batchOption{
 		maxRetry:    3,
-		interval:    time.Second,
-		maxInterval: time.Minute,
+		interval:    300 * time.Millisecond,
+		maxInterval: time.Second,
 	}
 }
 

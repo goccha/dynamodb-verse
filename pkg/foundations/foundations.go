@@ -19,6 +19,23 @@ type Client interface {
 	ScanClient
 	QueryClient
 	WriteClient
+	DescribeClient
+}
+
+// _shared
+var _shared Client
+
+// Share sets the shared dynamodb client.
+func Share(cli Client) {
+	_shared = cli
+}
+
+// Shared returns the shared dynamodb client.
+func Shared() Client {
+	if _shared == nil {
+		panic("dynamodb client is not shared")
+	}
+	return _shared
 }
 
 type GetClient interface {
@@ -37,6 +54,10 @@ type WriteClient interface {
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
 	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
 	DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
+}
+
+type DescribeClient interface {
+	DescribeTable(ctx context.Context, params *dynamodb.DescribeTableInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DescribeTableOutput, error)
 }
 
 func IsNil(record interface{}) bool {
@@ -68,6 +89,52 @@ type ScanFilterFunc func() (table string, expr expression.Expression, err error)
 type FetchItemFunc func(tableName string, value Record) error
 
 type FetchItemsFunc func(tableName string, value Records) error
+
+func Bytes(value []byte) *types.AttributeValueMemberB {
+	return &types.AttributeValueMemberB{
+		Value: value,
+	}
+}
+
+func Bool(value bool) *types.AttributeValueMemberBOOL {
+	return &types.AttributeValueMemberBOOL{
+		Value: value,
+	}
+}
+
+func String(value string) *types.AttributeValueMemberS {
+	return &types.AttributeValueMemberS{
+		Value: value,
+	}
+}
+
+func Number(value string) *types.AttributeValueMemberN {
+	return &types.AttributeValueMemberN{
+		Value: value,
+	}
+}
+
+func NumberSet(value ...string) *types.AttributeValueMemberNS {
+	return &types.AttributeValueMemberNS{
+		Value: value,
+	}
+}
+
+func List(value ...*types.AttributeValue) *types.AttributeValueMemberL {
+	values := make([]types.AttributeValue, len(value))
+	for i, v := range value {
+		values[i] = *v
+	}
+	return &types.AttributeValueMemberL{
+		Value: values,
+	}
+}
+
+func Null() *types.AttributeValueMemberNULL {
+	return &types.AttributeValueMemberNULL{
+		Value: true,
+	}
+}
 
 func Get(ctx context.Context, cli GetClient, getKeys GetKeyFunc, fetch FetchItemFunc, opt ...options.Option) (*dynamodb.GetItemOutput, error) {
 	table, keys, attrs, err := getKeys()
@@ -268,6 +335,28 @@ func Delete(ctx context.Context, cli WriteClient, items WriteItemFunc, opt ...op
 		return nil, err
 	}
 	return out, nil
+}
+
+func Describe(ctx context.Context, cli DescribeClient, tableName string) (*dynamodb.DescribeTableOutput, error) {
+	input := &dynamodb.DescribeTableInput{
+		TableName: aws.String(tableName),
+	}
+	out, err := cli.DescribeTable(ctx, input)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return out, nil
+}
+
+func Count(ctx context.Context, cli DescribeClient, tableName string) (int64, error) {
+	out, err := Describe(ctx, cli, tableName)
+	if err != nil {
+		return 0, errors.WithStack(err)
+	}
+	if out.Table.ItemCount == nil {
+		return 0, errors.WithStack(fmt.Errorf("item count is not available for table: %s", tableName))
+	}
+	return *out.Table.ItemCount, nil
 }
 
 type WriteItemFunc func() (table string, item map[string]types.AttributeValue, expr expression.Expression, err error)
@@ -478,4 +567,90 @@ func Values[T any](values ...T) (right expression.OperandBuilder, other []expres
 		}
 	}
 	return right, other
+}
+
+func EqualKey[T any](condition expression.KeyConditionBuilder, name string, value T) expression.KeyConditionBuilder {
+	if condition.IsSet() {
+		condition = condition.And(expression.Key(name).Equal(expression.Value(value)))
+	} else {
+		condition = expression.Key(name).Equal(expression.Value(value))
+	}
+	return condition
+}
+
+func RangeKey[T any](condition expression.KeyConditionBuilder, name string, begin, end *T) expression.KeyConditionBuilder {
+	if end != nil {
+		if condition.IsSet() {
+			if begin != nil {
+				condition = condition.And(expression.Key(name).Between(expression.Value(begin), expression.Value(end)))
+			} else {
+				condition = condition.And(expression.Key(name).LessThanEqual(expression.Value(end)))
+			}
+		} else {
+			if begin != nil {
+				condition = expression.Key(name).Between(expression.Value(begin), expression.Value(end))
+			} else {
+				condition = expression.Key(name).LessThanEqual(expression.Value(end))
+			}
+		}
+	} else {
+		if condition.IsSet() {
+			condition = condition.And(expression.Key(name).GreaterThanEqual(expression.Value(begin)))
+		} else {
+			condition = expression.Key(name).GreaterThanEqual(expression.Value(begin))
+		}
+	}
+	return condition
+}
+
+func RangeFilter[T any](filter expression.ConditionBuilder, name string, begin, end *T) expression.ConditionBuilder {
+	if end != nil {
+		if filter.IsSet() {
+			if begin != nil {
+				filter = filter.And(expression.Name(name).Between(expression.Value(begin), expression.Value(end)))
+			} else {
+				filter = filter.And(expression.Name(name).LessThanEqual(expression.Value(end)))
+			}
+		} else {
+			if begin != nil {
+				filter = expression.Name(name).Between(expression.Value(begin), expression.Value(end))
+			} else {
+				filter = expression.Name(name).LessThanEqual(expression.Value(end))
+			}
+		}
+	} else {
+		if filter.IsSet() {
+			filter = filter.And(expression.Name(name).GreaterThanEqual(expression.Value(begin)))
+		} else {
+			filter = expression.Name(name).GreaterThanEqual(expression.Value(begin))
+		}
+	}
+	return filter.And(expression.Name(name).NotEqual(expression.Value("-")))
+}
+
+func EqualFilter[T any](filter expression.ConditionBuilder, name string, value T) expression.ConditionBuilder {
+	if filter.IsSet() {
+		filter = filter.And(expression.Name(name).Equal(expression.Value(value)))
+	} else {
+		filter = expression.Name(name).Equal(expression.Value(value))
+	}
+	return filter
+}
+
+func NotExistsFilter[T any](filter expression.ConditionBuilder, name string, value T) expression.ConditionBuilder {
+	if filter.IsSet() {
+		filter = filter.And(expression.Or(expression.Name(name).Equal(expression.Value(value)), expression.Name(name).AttributeNotExists()))
+	} else {
+		filter = expression.Or(expression.Name(name).Equal(expression.Value(value)), expression.Name(name).AttributeNotExists())
+	}
+	return filter
+}
+
+func InFilter[T any](filter expression.ConditionBuilder, name string, values ...any) expression.ConditionBuilder {
+	if filter.IsSet() {
+		filter = filter.And(expression.Name(name).In(expression.Value(values)))
+	} else {
+		filter = expression.Name(name).In(expression.Value(values))
+	}
+	return filter
 }

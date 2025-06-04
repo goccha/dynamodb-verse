@@ -23,15 +23,15 @@ type Client interface {
 }
 
 // _shared
-var _shared Client
+var _shared *dynamodb.Client
 
 // Share sets the shared dynamodb client.
-func Share(cli Client) {
+func Share(cli *dynamodb.Client) {
 	_shared = cli
 }
 
 // Shared returns the shared dynamodb client.
-func Shared() Client {
+func Shared() *dynamodb.Client {
 	if _shared == nil {
 		panic("dynamodb client is not shared")
 	}

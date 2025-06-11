@@ -163,12 +163,29 @@ func New(opt ...options.Option) *Builder {
 }
 
 type Builder struct {
-	items    []transactionItem
-	opt      []options.Option
-	err      error
-	monitor  Monitor
-	failSafe bool
-	limit    int
+	items         []transactionItem
+	opt           []options.Option
+	err           error
+	monitor       Monitor
+	failSafe      bool
+	limit         int
+	preProcessor  []func(*Builder)
+	postProcessor []func(*Builder, error)
+}
+
+func (builder *Builder) WithPreProcessor(f func(*Builder)) *Builder {
+	if builder.preProcessor == nil {
+		builder.preProcessor = make([]func(*Builder), 0, 1)
+	}
+	builder.preProcessor = append(builder.preProcessor, f)
+	return builder
+}
+func (builder *Builder) WithPostProcessor(f func(*Builder, error)) *Builder {
+	if builder.postProcessor == nil {
+		builder.postProcessor = make([]func(*Builder, error), 0, 1)
+	}
+	builder.postProcessor = append(builder.postProcessor, f)
+	return builder
 }
 
 func (builder *Builder) Monitor(monitor Monitor) *Builder {
@@ -327,6 +344,24 @@ func (builder *Builder) Run(ctx context.Context, cli Client) (out *dynamodb.Tran
 			return nil, errors.New("too many items")
 		}
 	}
+	if builder.preProcessor != nil {
+		for _, pre := range builder.preProcessor {
+			if pre == nil {
+				continue
+			}
+			pre(builder)
+		}
+	}
+	defer func() {
+		if builder.postProcessor != nil {
+			for _, post := range builder.postProcessor {
+				if post == nil {
+					continue
+				}
+				post(builder, err)
+			}
+		}
+	}()
 	for i := 0; i < len(builder.items); i += builder.limit {
 		end := i + builder.limit
 		if end > len(builder.items) {
@@ -441,4 +476,18 @@ func Run(ctx context.Context, opt ...options.Option) (*dynamodb.TransactWriteIte
 	builder := t.Builder
 	t.Builder = New(opt...)
 	return builder.Run(ctx, t.db)
+}
+
+func WithPreProcessor(ctx context.Context, f func(*Builder)) context.Context {
+	if t, ok := From(ctx); ok {
+		t.WithPreProcessor(f)
+	}
+	return ctx
+}
+
+func WithPostProcessor(ctx context.Context, f func(*Builder, error)) context.Context {
+	if t, ok := From(ctx); ok {
+		t.WithPostProcessor(f)
+	}
+	return ctx
 }

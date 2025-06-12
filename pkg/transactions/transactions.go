@@ -478,16 +478,16 @@ func Run(ctx context.Context, opt ...options.Option) (*dynamodb.TransactWriteIte
 	return builder.Run(ctx, t.db)
 }
 
-func WithPreProcessor(ctx context.Context, f func(*Builder)) context.Context {
+func WithPreProcessor(ctx context.Context, f func(*Builder)) *Builder {
 	if t, ok := From(ctx); ok {
-		t.WithPreProcessor(f)
+		return t.WithPreProcessor(f)
 	}
-	return ctx
+	return nil
 }
 
-func WithPostProcessor(ctx context.Context, f func(*Builder, error)) context.Context {
+func WithPostProcessor(ctx context.Context, f func(*Builder, error)) *Builder {
 	if t, ok := From(ctx); ok {
-		t.WithPostProcessor(f)
+		return t.WithPostProcessor(f)
 	}
-	return ctx
+	return nil
 }

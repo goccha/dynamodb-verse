@@ -646,11 +646,19 @@ func NotExistsFilter[T any](filter expression.ConditionBuilder, name string, val
 	return filter
 }
 
-func InFilter[T any](filter expression.ConditionBuilder, name string, values ...T) expression.ConditionBuilder {
+const (
+	MaxInItems = 100
+)
+
+func InFilter[T any](filter expression.ConditionBuilder, name string, value T, values ...T) expression.ConditionBuilder {
+	var others []expression.OperandBuilder
+	for _, v := range values {
+		others = append(others, expression.Value(v))
+	}
 	if filter.IsSet() {
-		filter = filter.And(expression.Name(name).In(expression.Value(values)))
+		filter = filter.And(expression.Name(name).In(expression.Value(value), others...))
 	} else {
-		filter = expression.Name(name).In(expression.Value(values))
+		filter = expression.Name(name).In(expression.Value(value), others...)
 	}
 	return filter
 }
